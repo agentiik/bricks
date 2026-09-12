@@ -53,8 +53,27 @@ jobs:
       # The harness is the engine's own command and not a copy of it: what "the same envelopes"
       # means is one answer in one place, and a catalog comparing them its own way would be a
       # second answer that drifts.
+      #
+      # agentiik/agentiik is private, and a workflow's own GITHUB_TOKEN reaches only the
+      # repository it runs in, so go install cannot read it without being given something that
+      # can. CATALOG_TOKEN is that: an organisation secret with read access to the engine. The
+      # step says so rather than letting git ask for a username and fail on a terminal that is
+      # not there, which is the error this replaced.
+      #
+      # It fails rather than skips when the secret is absent. A job that quietly passed without
+      # running a single container would report a catalog nobody had tested.
       - name: install agk
-        run: go install github.com/agentiik/agentiik/cmd/agk@main
+        env:
+          CATALOG_TOKEN: ${{ secrets.CATALOG_TOKEN }}
+        run: |
+          if [ -z "$CATALOG_TOKEN" ]; then
+            echo "CATALOG_TOKEN is not set, so agk cannot be installed and no case can be run."
+            echo "agk lives in agentiik/agentiik, which is private; a workflow's GITHUB_TOKEN reaches only this repository."
+            echo "Set an organisation secret CATALOG_TOKEN with read access to agentiik/agentiik, or make that repository public."
+            exit 1
+          fi
+          git config --global url."https://x-access-token:$CATALOG_TOKEN@github.com/".insteadOf "https://github.com/"
+          GOPRIVATE=github.com/agentiik/* go install github.com/agentiik/agentiik/cmd/agk@main
 
       - name: build the images
         run: |
