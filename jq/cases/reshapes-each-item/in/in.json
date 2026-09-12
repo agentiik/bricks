@@ -1,0 +1,3 @@
+{"meta":{"run_id":"01M2AAZ9G62NQXFAFCXKRPJEH5","step":"split","port":"ok","attempt":1,"count":2,"produced_at":"2026-01-31T09:00:00Z"},"items":[
+{"id":"order-a1","data":{"ref":"a1","amount":1200,"currency":"EUR","note":"dropped by the expression"},"files":[]},
+{"id":"order-b2","data":{"ref":"b2","amount":3400,"currency":"EUR","note":"dropped by the expression"},"files":[]}]}

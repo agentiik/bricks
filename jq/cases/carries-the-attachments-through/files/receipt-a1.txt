@@ -1,0 +1,2 @@
+ref=a1
+amount=1200

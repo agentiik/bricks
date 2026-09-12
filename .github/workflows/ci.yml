@@ -1,0 +1,91 @@
+# Two things are checked here, and they are different kinds of check.
+#
+# The first is the module: build, vet, test, gofmt, the same four the engine runs and the same
+# four a person runs locally. It holds the part of a brick that is ordinary Go, which is most of
+# http-request and the shared reading and writing every brick does.
+#
+# The second is the contract, and nothing but a real container can check it: each image is built
+# and run against its cases with agk brick test, which starts a container, gives it the envelopes
+# the case carries and compares what came back. A brick that writes a port it does not declare, a
+# count that disagrees with its items or metadata it was not given fails here and nowhere else.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  module:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          # The version go.mod requires. Pinned to the minor rather than to stable, so that
+          # a new Go release is a commit someone makes here and reads.
+          go-version: '1.27'
+      - name: build
+        run: go build ./...
+      - name: vet
+        run: go vet ./...
+      - name: test
+        run: go test ./... -race
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "gofmt would rewrite these files:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+  cases:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+
+      # The harness is the engine's own command and not a copy of it: what "the same envelopes"
+      # means is one answer in one place, and a catalog comparing them its own way would be a
+      # second answer that drifts.
+      - name: install agk
+        run: go install github.com/agentiik/agentiik/cmd/agk@main
+
+      - name: build the images
+        run: |
+          set -eu
+          for brick in jq schema-validate csv; do
+            docker build --build-arg "BRICK=$brick" -t "ghcr.io/agentiik/$brick:ci" .
+          done
+          docker build -f http-request/Dockerfile -t ghcr.io/agentiik/http-request:ci .
+
+      # The identities are compared, not held aside. Every brick here derives an item's identity
+      # from the payload it came from, which is what makes two runs over one batch comparable at
+      # all, so a brick that started minting them would fail this.
+      - name: run the cases
+        run: |
+          set -eu
+          for brick in jq schema-validate csv; do
+            echo "::group::$brick"
+            (cd "$brick" && agk brick test --image "ghcr.io/agentiik/$brick:ci" \
+              --ignore meta.run_id,meta.produced_at,files.uri)
+            echo "::endgroup::"
+          done
+
+      # http-request declares network: egress, and the driver refuses that posture until the
+      # runner has the proxy that enforces a step's egress.allow list: opening the network and
+      # calling it filtered is the one thing it will not do. So its cases are written and cannot
+      # run, and this says so out loud rather than leaving a brick quietly untested. The request
+      # itself is covered by the module job, against a server in the test's own process.
+      #
+      # Delete this step and add http-request to the loop above when the proxy lands in v0.2.0.
+      - name: the cases http-request cannot run yet
+        run: |
+          echo "http-request declares network: egress, which the driver refuses until the runner proxy exists."
+          echo "Its $(ls -1 http-request/cases | wc -l | tr -d ' ') cases are committed and will run when v0.2.0 lands the proxy."
+          echo "What it does with a request is held in http-request/request_test.go, against an httptest server."

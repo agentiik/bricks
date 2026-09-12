@@ -1,0 +1,1 @@
+{"meta":{"run_id":"01M2AAZ9G62NQXFAFCXKRPJEH5","step":"reads-a-table-with-no-header","port":"out","attempt":1,"count":2,"produced_at":"1970-01-01T00:00:00Z"},"items":[{"id":"batch#0","data":{"c0":"a1","c1":"1200"},"files":[]},{"id":"batch#1","data":{"c0":"b2","c1":"3400"},"files":[]}]}

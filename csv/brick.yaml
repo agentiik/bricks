@@ -1,0 +1,67 @@
+# Conversion in both directions, because a table is what arrives from outside and items are what
+# a workflow is made of. One row is one item, which is the unit a fan-out divides.
+apiVersion: agentiik.dev/v1
+kind: Brick
+
+metadata:
+  name: csv
+  version: 0.1.0
+  summary: Converts a table into one item per row, and a batch of items into a table.
+
+spec:
+  inputs:
+    in:
+      schema: { type: object }
+
+  outputs:
+    out:
+      schema: { type: object }
+
+  params:
+    direction:
+      type: string
+      enum: [to_items, to_table]
+      required: true
+      description: >-
+        to_items reads the table each item attaches and publishes one item per row. to_table
+        reads the whole batch and publishes one item carrying the table, inline while it fits
+        and as an attached artifact once it does not.
+    file:
+      type: string
+      description: >-
+        to_items only. The name of the attached artifact holding the table. An item attaching
+        exactly one file needs no name.
+      examples: [orders.csv]
+    table_name:
+      type: string
+      default: table.csv
+      description: to_table only. What the artifact is called when the table is attached.
+    header:
+      type: boolean
+      default: true
+      description: >-
+        Whether the first record names the columns. Reading without a header names them by
+        position, c0 upwards; writing without one omits it.
+    delimiter:
+      type: string
+      default: ","
+      description: One character.
+      examples: [",", ";", "\t"]
+    inline_max_bytes:
+      type: integer
+      minimum: 0
+      default: 262144
+      description: >-
+        to_table only. The size above which the table travels as an artifact rather than in the
+        envelope. The default is the documented inline_max_bytes, and a step on an installation
+        that tuned the setting passes its own.
+
+  runtime:
+    network: none
+    streaming: false
+    user: "65532:65532"
+
+  resources:
+    cpu: "0.5"
+    memory: 256Mi
+    pids: 64

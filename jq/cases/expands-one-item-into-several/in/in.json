@@ -1,0 +1,2 @@
+{"meta":{"run_id":"01M2AAZ9G62NQXFAFCXKRPJEH5","step":"read","port":"ok","attempt":1,"count":1,"produced_at":"2026-01-31T09:00:00Z"},"items":[
+{"id":"invoice-7","data":{"lines":[{"sku":"AB-1","qty":2},{"sku":"CD-2","qty":5}]},"files":[]}]}
