@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["ref", "amount"],
+  "properties": {
+    "ref": { "type": "string", "pattern": "^[a-z][0-9]$" },
+    "amount": { "type": "integer", "minimum": 1 }
+  }
+}

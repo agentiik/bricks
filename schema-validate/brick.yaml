@@ -1,0 +1,60 @@
+# Validation that routes rather than fails. A batch of a thousand orders with three bad ones is
+# not a failed step, and the workflow decides what the three are worth.
+apiVersion: agentiik.dev/v1
+kind: Brick
+
+metadata:
+  name: schema-validate
+  version: 0.1.0
+  summary: Holds every item to a JSON Schema and routes the ones that do not meet it to a port of their own.
+
+spec:
+  inputs:
+    in:
+      schema: { type: object }
+
+  outputs:
+    ok:
+      schema: { type: object }
+    invalid:
+      schema:
+        type: object
+        required: [item, violations]
+        properties:
+          item:
+            description: The payload as it arrived, unchanged.
+          violations:
+            type: array
+            items:
+              type: object
+              required: [path, keyword, message]
+              properties:
+                path: { type: string, description: "JSON Pointer into the payload, empty for the payload itself." }
+                keyword: { type: string, description: "Where in the schema the departure was found." }
+                message: { type: string }
+
+  params:
+    schema:
+      type: object
+      description: >-
+        The JSON Schema 2020-12 document to hold every item to, written inline. Exactly one of
+        schema and schema_path.
+      examples:
+        - { type: object, required: [ref, amount], properties: { ref: { type: string }, amount: { type: integer, minimum: 1 } } }
+    schema_path:
+      type: string
+      description: >-
+        The schema as a file of the workflow repository, relative to /agk/repo and inside it.
+        Exactly one of schema and schema_path.
+      examples:
+        - schemas/order.json
+
+  runtime:
+    network: none
+    streaming: false
+    user: "65532:65532"
+
+  resources:
+    cpu: "0.5"
+    memory: 128Mi
+    pids: 64

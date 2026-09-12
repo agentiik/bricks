@@ -1,0 +1,4 @@
+{"meta":{"run_id":"01M2AAZ9G62NQXFAFCXKRPJEH5","step":"charge","port":"ok","attempt":1,"count":3,"produced_at":"2026-01-31T09:00:00Z"},"items":[
+{"id":"charge-a1","data":{"ref":"a1","charged":1200,"currency":"EUR","settled":true},"files":[]},
+{"id":"charge-b2","data":{"ref":"b2","charged":3400,"currency":"EUR","settled":true},"files":[]},
+{"id":"charge-c3","data":{"ref":"c3","charged":0,"currency":"EUR","settled":false},"files":[]}]}

@@ -1,0 +1,44 @@
+# Transformation and filtering, which is what a workflow needs between two bricks that were
+# not written for each other. The expression is the step's, and everything this brick decides
+# is what an item is called afterwards.
+apiVersion: agentiik.dev/v1
+kind: Brick
+
+metadata:
+  name: jq
+  version: 0.1.0
+  summary: Transforms and filters items through a jq expression.
+
+spec:
+  inputs:
+    in:
+      schema: { type: object }
+
+  outputs:
+    out:
+      schema: { type: object }
+
+  params:
+    expression:
+      type: string
+      required: true
+      description: >-
+        The jq expression, applied to each item's data. The identity of the item is bound to
+        $id and its attachments to $files. An expression yielding nothing drops the item, one
+        yielding several values publishes several items, and one yielding anything but an
+        object is refused.
+      examples:
+        - "{ref, total: .amount}"
+        - "select(.amount > 0)"
+        - ".lines[]"
+        - "if $id | startswith(\"eu-\") then . else empty end"
+
+  runtime:
+    network: none
+    streaming: false
+    user: "65532:65532"
+
+  resources:
+    cpu: "0.5"
+    memory: 128Mi
+    pids: 64

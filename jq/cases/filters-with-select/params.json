@@ -1,0 +1,1 @@
+{"expression":"select(.amount > 0)"}

@@ -1,0 +1,103 @@
+# One request per item. The step says what is true of every item and the item says what is true
+# of itself, which is what makes a fan-out of a thousand orders one step's worth of configuration.
+apiVersion: agentiik.dev/v1
+kind: Brick
+
+metadata:
+  name: http-request
+  version: 0.1.0
+  summary: Issues one HTTP request per item and publishes the response.
+
+spec:
+  inputs:
+    in:
+      schema: { $ref: "#/spec/definitions/request" }
+
+  outputs:
+    out:
+      schema: { $ref: "#/spec/definitions/response" }
+    error:
+      schema: { $ref: "#/spec/definitions/failure" }
+
+  params:
+    url:
+      type: string
+      format: uri
+      description: >-
+        The url every item is requested at, unless the item carries its own. Required unless
+        every item does.
+      examples: ["https://api.billing.example.com/v1/charges"]
+    method:
+      type: string
+      enum: [GET, POST, PUT, PATCH, DELETE]
+      default: GET
+    headers:
+      type: object
+      additionalProperties: { type: string }
+      description: Sent with every request. An item's own headers are merged over these, key by key.
+      examples: [{ Accept: application/json }]
+    timeout:
+      type: string
+      pattern: "^[0-9]+(ms|s|m|h|d)$"
+      default: 30s
+      description: One number and one unit, as every duration in the language is written.
+    inline_max_bytes:
+      type: integer
+      minimum: 0
+      default: 262144
+      description: >-
+        The size above which a response body is attached as an artifact rather than carried in
+        the envelope. The default is the documented inline_max_bytes.
+
+  secrets:
+    - name: bearer
+      optional: true
+      mount: /agk/secrets/bearer
+
+  runtime:
+    # This brick exists to reach outside, so it says so. Until the runner has the proxy that
+    # enforces a step's egress.allow list, the driver refuses this mode rather than opening the
+    # network and calling it filtered, which is why this brick cannot yet be run locally.
+    network: egress
+    streaming: false
+    user: "65532:65532"
+
+  resources:
+    cpu: "0.5"
+    memory: 256Mi
+    pids: 128
+
+  # JSON Schema 2020-12
+  definitions:
+    request:
+      type: object
+      description: What an item may add to the step's own parameters. Every member is optional.
+      properties:
+        url: { type: string, format: uri }
+        method: { type: string, enum: [GET, POST, PUT, PATCH, DELETE] }
+        headers: { type: object, additionalProperties: { type: string } }
+        query: { type: object, additionalProperties: { type: string } }
+        body: { description: Sent as the request body, as JSON unless the step set a Content-Type. }
+    response:
+      type: object
+      required: [url, method, status, headers, duration_ms]
+      properties:
+        url: { type: string }
+        method: { type: string }
+        status: { type: integer }
+        headers: { type: object, additionalProperties: { type: string } }
+        duration_ms: { type: integer }
+        body: { description: The response body, as JSON where the response said it was JSON and as text otherwise. Absent when it was attached. }
+        body_attached: { type: string, description: The name of the artifact the body was attached as, when it was too large to carry. }
+    failure:
+      type: object
+      required: [message]
+      properties:
+        url: { type: string }
+        method: { type: string }
+        status: { type: integer, description: The status, where a response arrived. Absent when none did. }
+        headers: { type: object, additionalProperties: { type: string } }
+        duration_ms: { type: integer }
+        body: { description: The body of the response that was not a success. }
+        body_attached: { type: string }
+        message: { type: string, description: What went wrong, where no response arrived at all. }
