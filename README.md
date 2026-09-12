@@ -1,6 +1,6 @@
 # bricks
 
-The standard catalog: one directory per brick, each producing its own image, its manifest at `/agk/brick.yaml` and its example envelopes. Published to `ghcr.io/agentiik/<name>`, signed, with the OCI annotations the brick contract requires.
+The standard catalog: one directory per brick, each producing its own image, its manifest at `/agk/brick.yaml` and its example envelopes. Nothing is published yet: the images are built from this repository with the command below, and publishing them to `ghcr.io/agentiik/<name>`, signed and carrying the OCI annotations the brick contract requires, is v0.8.0 work.
 
 A brick reads an envelope at `/agk/in/<port>/envelope.json`, writes one envelope per output port at `/agk/out/ports/<port>.json`, attaches artifacts under `/agk/out/files/`, and ends with an exit code the contract's table reads. That is the whole contract, and it is what makes a brick in any language, under any licence, as much a brick as the ones here. The contract is specified at <https://agentiik.github.io/docs#brick>.
 
