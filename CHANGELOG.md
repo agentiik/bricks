@@ -8,7 +8,7 @@ Every repository of the project carries the same version and is tagged at the sa
 
 ## v0.3.0, 2026-09-28
 
-- Nothing changed here. The version moves because every repository carries the same one, which [Versioning](https://agentiik.github.io/docs#versioning) sets out.
+- The README and the CI step naming `http-request`'s unrun cases name v0.9.0 as the release whose egress proxy runs them.
 
 ## v0.2.5, 2026-09-26
 
