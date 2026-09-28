@@ -47,7 +47,7 @@ The identities are compared rather than held aside, which `--ignore` above is sa
 
 ## http-request cannot be run yet
 
-Its manifest declares `network: egress`, and the driver refuses that posture until the runner has the proxy that enforces a step's `egress.allow` list: opening the network and calling it filtered is the one thing it will not do. Its four cases are committed and will run when the proxy lands in v0.2.0. What it does with a request is held in `http-request/request_test.go`, against a server in the test's own process.
+Its manifest declares `network: egress`, and the driver refuses that posture until the runner has the proxy that enforces a step's `egress.allow` list: opening the network and calling it filtered is the one thing it will not do. Its four cases are committed and will run when the proxy lands in v0.9.0. What it does with a request is held in `http-request/request_test.go`, against a server in the test's own process.
 
 ## No Agentiik library
 

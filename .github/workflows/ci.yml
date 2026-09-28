@@ -87,9 +87,9 @@ jobs:
       # run, and this says so out loud rather than leaving a brick quietly untested. The request
       # itself is covered by the module job, against a server in the test's own process.
       #
-      # Delete this step and add http-request to the loop above when the proxy lands in v0.2.0.
+      # Delete this step and add http-request to the loop above when the proxy lands in v0.9.0.
       - name: the cases http-request cannot run yet
         run: |
           echo "http-request declares network: egress, which the driver refuses until the runner proxy exists."
-          echo "Its $(ls -1 http-request/cases | wc -l | tr -d ' ') cases are committed and will run when v0.2.0 lands the proxy."
+          echo "Its $(ls -1 http-request/cases | wc -l | tr -d ' ') cases are committed and will run when v0.9.0 lands the proxy."
           echo "What it does with a request is held in http-request/request_test.go, against an httptest server."
