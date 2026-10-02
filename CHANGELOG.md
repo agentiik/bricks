@@ -8,7 +8,7 @@ Every repository of the project carries the same version and is tagged at the sa
 
 ## v0.6.0, 2026-10-02
 
-- Nothing changed here. The version moves because every repository carries the same one, which [Versioning](https://agentiik.github.io/docs#versioning) sets out.
+- `CLAUDE.md` is the copy of `agentiik/.github`'s as it stands at v0.6.0: twelve repositories, the web console part of `agentiik`, and the roadmap at 685 tasks in sixty-three groups. Nothing else changed; the version moves because every repository carries the same one, which [Versioning](https://agentiik.github.io/docs#versioning) sets out.
 
 ## v0.5.0, 2026-09-30
 
