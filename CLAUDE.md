@@ -16,9 +16,9 @@ Two rules follow, and they are the ones most often broken:
 
 ## How the work is tracked
 
-<https://agentiik.github.io/docs/roadmap> lists 685 tasks in sixty-three groups across ten milestones, ordered by dependency and carrying no dates. The milestones are the releases: `v0.4.0` in the roadmap is the tag `v0.4.0` on every repository.
+<https://agentiik.github.io/docs/roadmap> lists the tasks in groups across ten milestones, ordered by dependency and carrying no dates. It counts them itself, in each milestone's tally; a count copied here was wrong within a release, since every edit of the roadmap moves it. The milestones are the releases: `v0.4.0` in the roadmap is the tag `v0.4.0` on every repository.
 
-Each group is an issue of type Feature in the repository it names, 64 of them, because the v1.0.0 group covering disclosure, licensing and the release itself is filed as two. Its tasks become sub-issues of type Task when the group starts, which is what starting a group means: the plan changes by rewriting, and rewriting a paragraph costs nothing while rewriting fifty open issues costs an afternoon.
+Each group is an issue of type Feature in the repository it names, but for the v1.0.0 group covering disclosure, licensing and the release itself, which is filed as two. Its tasks become sub-issues of type Task when the group starts, which is what starting a group means: the plan changes by rewriting, and rewriting a paragraph costs nothing while rewriting fifty open issues costs an afternoon.
 
 Everything sits on the organisation project, <https://github.com/orgs/agentiik/projects/1>, where `Release`, `Starts after`, `Spec` and `Section` answer what a per-repository milestone cannot.
 
