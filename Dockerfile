@@ -1,7 +1,7 @@
 # One recipe for every brick of this catalog whose image is only its binary, selected by a
 # build argument:
 #
-#     docker build --build-arg BRICK=jq -t ghcr.io/agentiik/jq:0.1.0 .
+#     docker build --build-arg BRICK=jq -t ghcr.io/agentiik/jq:dev .
 #
 # One file rather than one per directory, because four files differing in a single word are
 # four places for that word to be wrong. A brick needing more than this carries a Dockerfile of
@@ -11,7 +11,12 @@
 # The second stage is scratch. A brick is given a read-only root filesystem, no network by
 # default and an unprivileged account, and an image with no shell, no package manager and no
 # libc in it has nothing left to take advantage of.
-FROM golang:1.27-alpine AS build
+# The build stage runs on the machine building, whatever platform the image is for, and the
+# compiler crosses to the target: building the arm64 image under emulation would take a Go
+# toolchain through QEMU for a binary Go can cross-compile in seconds.
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
+ARG TARGETOS
+ARG TARGETARCH
 ARG BRICK
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -21,7 +26,7 @@ COPY ${BRICK} ./${BRICK}
 # CGO_ENABLED=0 is what makes the binary static, and static is what makes scratch possible.
 # -trimpath keeps the build path out of the binary, so two machines building this commit
 # produce the same bytes.
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/brick ./${BRICK}
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/brick ./${BRICK}
 
 FROM scratch
 ARG BRICK

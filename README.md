@@ -1,6 +1,6 @@
 # bricks
 
-The standard catalog: one directory per brick, each producing its own image, its manifest at `/agk/brick.yaml` and its example envelopes. Nothing is published yet: the images are built from this repository with the command below, and publishing them to `ghcr.io/agentiik/<name>`, signed and carrying the OCI annotations the brick contract requires, is v0.8.0 work.
+The standard catalog: one directory per brick, each producing its own image, its manifest at `/agk/brick.yaml` and its example envelopes. The images are published to `ghcr.io/agentiik/<name>` from v0.8.0, as described under Publishing; signing them and carrying the OCI annotations the brick contract requires is the rest of v0.8.0's work.
 
 A brick reads an envelope at `/agk/in/<port>/envelope.json`, writes one envelope per output port at `/agk/out/ports/<port>.json`, attaches artifacts under `/agk/out/files/`, and ends with an exit code the contract's table reads. That is the whole contract, and it is what makes a brick in any language, under any licence, as much a brick as the ones here. The contract is specified at <https://agentiik.github.io/docs#brick>.
 
@@ -44,8 +44,8 @@ A brick leaves through `envelope.Die` and a named band: `Failed` (1) for an appl
 
 ## Building and testing one
 
-    docker build --build-arg BRICK=jq -t ghcr.io/agentiik/jq:0.1.0 .
-    cd jq && agk brick test --image ghcr.io/agentiik/jq:0.1.0 \
+    docker build --build-arg BRICK=jq -t ghcr.io/agentiik/jq:dev .
+    cd jq && agk brick test --image ghcr.io/agentiik/jq:dev \
       --ignore meta.run_id,meta.produced_at,files.uri
 
 One `Dockerfile` at the root serves every brick whose image is only its binary, selected by `BRICK`. A brick needing more carries its own beside its manifest and says in it what it needs: `http-request` does, for the certificate authorities it cannot verify a server without.
@@ -53,6 +53,10 @@ One `Dockerfile` at the root serves every brick whose image is only its binary, 
 The images are `scratch` with one static binary in them. No shell, no package manager, no libc: a brick is given a read-only root filesystem, no network by default and an unprivileged account, and an image with none of those three in it has nothing left to take advantage of.
 
 The identities are compared rather than held aside, which `--ignore` above is saying by leaving `items.id` out of it. Every brick here derives an item's identity from the payload it came from, because that is what makes two runs over one batch comparable and a replay rejoin what it rejoined before.
+
+## Publishing
+
+`.github/workflows/publish.yml` builds every directory holding a `brick.yaml` from one matrix, each into one index for `linux/amd64` and `linux/arm64`, the architectures a step selects with `runs_on: [arch=...]`. A tag `vX.Y.Z` publishes every brick as `X.Y.Z` and `vX.Y.Z`, and `latest` where it is the highest release, whether the brick changed or not; a push to `main` publishes `dev`; any other branch goes through the same steps against a registry inside the job. A release refuses a manifest whose `metadata.version` is not the tag's, so the manifests are moved to the next version on `main` before tagging, like the changelog.
 
 ## http-request cannot be run yet
 

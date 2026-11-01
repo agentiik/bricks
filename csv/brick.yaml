@@ -5,7 +5,7 @@ kind: Brick
 
 metadata:
   name: csv
-  version: 0.1.0
+  version: 0.8.0
   summary: Converts a table into one item per row, and a batch of items into a table.
 
 spec:

@@ -5,7 +5,7 @@ kind: Brick
 
 metadata:
   name: http-request
-  version: 0.1.0
+  version: 0.8.0
   summary: Issues one HTTP request per item and publishes the response.
 
 spec:

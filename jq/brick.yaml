@@ -6,7 +6,7 @@ kind: Brick
 
 metadata:
   name: jq
-  version: 0.1.0
+  version: 0.8.0
   summary: Transforms and filters items through a jq expression.
 
 spec:
