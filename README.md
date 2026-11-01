@@ -14,11 +14,12 @@ A brick reads an envelope at `/agk/in/<port>/envelope.json`, writes one envelope
 | [`xlsx`](xlsx) | Converts a spreadsheet into one item per row, a cell keeping its type, and a batch of items into a spreadsheet. The standard library alone reads and writes it. |
 | [`http-request`](http-request) | Issues one HTTP request per item and publishes the response. |
 | [`sql-query`](sql-query) | Runs one SQL statement against PostgreSQL, MySQL or SQLite, once per item or once alone, in one transaction, and publishes each row as an item. The connection string is the secret `dsn`. |
+| [`smtp-send`](smtp-send) | Sends one message per item, its recipients, subject and body filled from the item by templates, its files attached. The server and its account are the secret `smtp`. |
 | [`aggregate`](aggregate) | Groups items by the value of one field, one item per group, the other half of `split`. |
 | [`template`](template) | Renders a Go text/template per item, into a field of its data or an artifact it carries. |
 | [`split`](split) | Splits one item into several, one per element of an array field. A shell script and jq, with no helper. |
 
-The rest of the catalog the documentation names, `s3`, `smtp-send`, `imap-fetch`, `wait` and `exec`, is v0.8.0 work. The first four are v0.1.0 because they are what a workflow needs to do anything at all.
+The rest of the catalog the documentation names, `s3`, `imap-fetch`, `wait` and `exec`, is v0.8.0 work. The first four are v0.1.0 because they are what a workflow needs to do anything at all.
 
 ## A brick is a directory
 
@@ -89,6 +90,14 @@ The brick cannot know which hosts a step's items point at, so the step names the
 It declares `network: egress` for the same reason, since PostgreSQL and MySQL are reached over the network, and the posture is the brick's, so its SQLite half waits too. Its two cases are committed. What it does with a statement is held in `sql-query/query_test.go`: against SQLite in the test's own process, and against PostgreSQL and MySQL where `SQL_QUERY_POSTGRES` and `SQL_QUERY_MYSQL` name a server, as the module job does with two service containers.
 
 The connection string is the secret `dsn`, a URL: `postgres://`, `mysql://` or `sqlite://` followed by the database. A SQLite file is opened read-only, since one a container can reach is in the read-only repository or an attachment.
+
+## smtp-send cannot be run yet either
+
+It declares `network: egress`, since a mail server is reached over the network, and its two cases are committed. What it does with a batch is held in `smtp-send/send_test.go`, against a server in the test's own process that speaks STARTTLS on a certificate the test made.
+
+The server and its account are the secret `smtp`, a URL: `smtps://user:password@host:465` for TLS from the first byte, or `smtp://user:password@host:587`, whose server has to offer STARTTLS, since nothing is sent in the clear. A message the server refuses goes to the `error` port with its reply and the rest of the batch is sent. Sending cannot be undone, so each message's `Message-ID` is the same for one item of one step of one run on every attempt, which lets a receiver recognise a retry's copy.
+
+`internal/render` is the template filling `template` and `smtp-send` share, so that a missing field is refused the same way in both.
 
 ## No Agentiik library
 

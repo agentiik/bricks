@@ -1,0 +1,1 @@
+{"to":"{{.email}}","subject":"Invoice {{.ref}}","body":"Invoice {{.ref}} is attached."}

@@ -5,7 +5,7 @@
 version: 2
 updates:
   - package-ecosystem: docker
-    directories: ['/', '/http-request', '/split', '/sql-query']
+    directories: ['/', '/http-request', '/split', '/sql-query', '/smtp-send']
     schedule:
       interval: daily
   - package-ecosystem: github-actions

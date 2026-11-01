@@ -1,0 +1,1 @@
+{"from":"Billing <billing@example.com>","to":"{{.email}}","subject":"Invoice {{.ref}}","body":"Invoice {{.ref}} is attached."}
