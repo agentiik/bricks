@@ -137,6 +137,20 @@ func TestEveryManifestIsOneTheEngineAccepts(t *testing.T) {
 	}
 }
 
+// Every manifest names the same version, the one the catalog is released under: a tag publishes
+// every brick under it, changed or not, and publish.yml refuses a tag the manifests disagree with,
+// so a disagreement is caught here first rather than by a failed release.
+func TestEveryManifestNamesOneVersion(t *testing.T) {
+	seen := map[string][]string{}
+	for _, b := range bricks(t) {
+		v, _ := lookup(b.manifest, "metadata", "version").(string)
+		seen[v] = append(seen[v], b.name)
+	}
+	if len(seen) > 1 {
+		t.Errorf("the manifests name more than one version, and one version names the catalog: %v", seen)
+	}
+}
+
 var userLine = regexp.MustCompile(`(?m)^USER\s+(\S+)\s*$`)
 
 // The account a manifest declares is the account its image runs as. The engine checks the
