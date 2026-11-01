@@ -136,6 +136,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   brick:
+    name: ${{ matrix.brick.name }} ${{ matrix.brick.tags }}
     needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 30
