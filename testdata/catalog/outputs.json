@@ -110,7 +110,6 @@
     "items": [
       {
         "data": {
-          "attached": true,
           "bytes": 52,
           "columns": [
             "qty",

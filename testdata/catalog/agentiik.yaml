@@ -77,7 +77,6 @@ steps:
     params:
       direction: to_table
       table_name: lines.csv
-      inline_max_bytes: 0
     outputs: [out]
 
   rows:

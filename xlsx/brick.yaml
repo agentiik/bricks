@@ -1,0 +1,62 @@
+# Spreadsheets, the other table that arrives from outside, converted both ways as csv converts
+# text. A cell keeps its type, which is what an xlsx file has over a CSV one.
+apiVersion: agentiik.dev/v1
+kind: Brick
+
+metadata:
+  name: xlsx
+  version: 0.8.0
+  summary: Converts a spreadsheet into one item per row, and a batch of items into a spreadsheet.
+
+spec:
+  inputs:
+    in:
+      schema: { type: object }
+
+  outputs:
+    out:
+      schema: { type: object }
+
+  params:
+    direction:
+      type: string
+      enum: [to_items, to_table]
+      required: true
+      description: >-
+        to_items reads the workbook each item attaches and publishes one item per row, a number
+        cell as a number, a boolean as a boolean and an empty cell as null. to_table writes the
+        whole batch into one workbook, one column per key any item carries, and publishes one item
+        attaching it as an artifact, however small.
+      examples: [to_items, to_table]
+    file:
+      type: string
+      description: to_items only. The attached workbook to read, where an item attaches more than one.
+      examples: [orders.xlsx]
+    sheet:
+      type: string
+      description: >-
+        The sheet: the one to read, the first where none is named, or the name of the one written,
+        Sheet1 where none is named.
+      examples: [Orders, Sheet1]
+    table_name:
+      type: string
+      default: table.xlsx
+      description: to_table only. What the workbook's artifact is called.
+      examples: [orders.xlsx]
+    header:
+      type: boolean
+      default: true
+      description: >-
+        Whether the first row names the columns. Reading without a header names them by position,
+        c0 upwards; writing without one omits it.
+      examples: [true, false]
+
+  runtime:
+    network: none
+    streaming: false
+    user: "65532:65532"
+
+  resources:
+    cpu: "0.5"
+    memory: 256Mi
+    pids: 64
