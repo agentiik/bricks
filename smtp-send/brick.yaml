@@ -1,0 +1,130 @@
+# Mail, which is how most workflows end: a reminder, an invoice, a report someone reads. One
+# message per item, written from the item by templates, so that a thousand customers are one
+# step's worth of configuration.
+apiVersion: agentiik.dev/v1
+kind: Brick
+
+metadata:
+  name: smtp-send
+  version: 0.8.0
+  summary: Sends one message per item, its recipients, subject and body filled from the item, its files attached.
+
+spec:
+  inputs:
+    in:
+      schema:
+        type: object
+        description: >-
+          Any item carrying every field the templates name; one lacking a field, or whose
+          addresses do not parse, refuses the step before any message is sent. The files it
+          carries are attached unless attach is false.
+        examples:
+          - { email: ada@example.com, name: Ada, ref: a1 }
+
+  outputs:
+    out:
+      schema:
+        type: object
+        description: >-
+          One item per message the server took, under the identity of the item that asked for it,
+          without its files.
+        required: [message_id, from, to, subject]
+        properties:
+          message_id: { type: string, description: "The Message-ID header, the same for one item of one step of one run on every attempt, so that a receiver keeping Message-IDs recognises a retry's second copy." }
+          from: { type: string, description: The address the message was sent from. }
+          to: { type: array, items: { type: string }, description: The addresses of the To header. }
+          cc: { type: array, items: { type: string }, description: The addresses of the Cc header. }
+          bcc: { type: array, items: { type: string }, description: The addresses sent a copy and named in no header. }
+          subject: { type: string, description: The subject, filled. }
+        examples:
+          - { message_id: "<5f2c0e8a41d3b7c9e6a1f0d2b4c8e7a3@example.com>", from: billing@example.com, to: [ada@example.com], cc: [], bcc: [archive@example.com], subject: "Invoice a1" }
+    error:
+      schema:
+        type: object
+        description: >-
+          One item per message the server refused, or that was not handed over because the
+          connection was lost first, under the identity of the item that asked for it. The rest
+          of the batch is sent: one bad address in a thousand is not a failed step, and the
+          workflow decides what it is worth.
+        required: [message_id, to, subject, message]
+        properties:
+          message_id: { type: string, description: The Message-ID the message would have carried. }
+          to: { type: array, items: { type: string }, description: The addresses of the To header. }
+          subject: { type: string, description: The subject, filled. }
+          code: { type: integer, description: "The server's reply code, 550 for an unknown mailbox. Absent where the connection was lost and the server said nothing." }
+          message: { type: string, description: The server's reply, or what happened to the connection. }
+        examples:
+          - { message_id: "<5f2c0e8a41d3b7c9e6a1f0d2b4c8e7a3@example.com>", to: [gone@example.com], subject: "Invoice a1", code: 550, message: "5.1.1 no such user" }
+
+  params:
+    from:
+      type: string
+      required: true
+      description: The one address every message is sent from, with a display name where wanted.
+      examples: ["Billing <billing@example.com>", billing@example.com]
+    to:
+      type: string
+      required: true
+      description: >-
+        A template filling to a comma-separated list of addresses, usually from the item. Like
+        every template here it is Go's text/template, the item's data as dot and its identity as
+        id, and a field it names that the item lacks is refused rather than filled empty.
+      examples: ["{{.email}}", "{{.name}} <{{.email}}>"]
+    cc:
+      type: string
+      description: A template filling to the addresses of the Cc header. Filling to nothing names none.
+      examples: ["{{.manager}}", accounts@example.com]
+    bcc:
+      type: string
+      description: A template filling to addresses sent a copy and named in no header.
+      examples: [archive@example.com]
+    reply_to:
+      type: string
+      description: A template filling to the addresses of the Reply-To header.
+      examples: ["support@example.com"]
+    subject:
+      type: string
+      required: true
+      description: A template filling to the subject, on one line. Any character, encoded as the header needs.
+      examples: ["Invoice {{.ref}}", "Facture {{.ref}} échue"]
+    body:
+      type: string
+      description: >-
+        A template filling to the body. Give this or body_path, and one of the two.
+      examples: ["Dear {{.name}},\n\nInvoice {{.ref}} is attached.\n"]
+    body_path:
+      type: string
+      description: >-
+        A file of the workflow repository holding the body's template, relative to its root, for
+        a body too long to write inline.
+      examples: [mail/reminder.txt]
+    html:
+      type: boolean
+      default: false
+      description: Whether the body is HTML rather than plain text.
+      examples: [false, true]
+    attach:
+      type: boolean
+      default: true
+      description: Whether the files an item carries are attached to its message, each under its own name and media type.
+      examples: [true, false]
+
+  secrets:
+    # Required, and its value is a URL: smtps://user:password@host:465 for TLS from the first byte,
+    # or smtp://user:password@host:587 for STARTTLS, which a server has to offer. The account is
+    # optional, for a relay that takes mail from a network it trusts.
+    - name: smtp
+      mount: /agk/secrets/smtp
+
+  runtime:
+    # A mail server is reached over the network, so the brick says so. The driver refuses this mode
+    # until the runner has the proxy that enforces a step's egress.allow list, which is why this
+    # brick cannot yet be run in a container.
+    network: egress
+    streaming: false
+    user: "65532:65532"
+
+  resources:
+    cpu: "0.5"
+    memory: 256Mi
+    pids: 64

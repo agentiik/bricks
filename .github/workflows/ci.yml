@@ -102,6 +102,7 @@ jobs:
           done
           docker build -f http-request/Dockerfile -t ghcr.io/agentiik/http-request:ci .
           docker build -f sql-query/Dockerfile -t ghcr.io/agentiik/sql-query:ci .
+          docker build -f smtp-send/Dockerfile -t ghcr.io/agentiik/smtp-send:ci .
           docker build -f split/Dockerfile -t ghcr.io/agentiik/split:ci .
 
       # The identities are compared, not held aside. Every brick here derives an item's identity
@@ -136,18 +137,19 @@ jobs:
             exit 1
           fi
 
-      # http-request and sql-query declare network: egress, and the driver refuses that posture
-      # until the runner has the proxy that enforces a step's egress.allow list: opening the
-      # network and calling it filtered is the one thing it will not do. So their cases are
-      # written and cannot run, and this says so out loud rather than leaving a brick quietly
+      # http-request, sql-query and smtp-send declare network: egress, and the driver refuses
+      # that posture until the runner has the proxy that enforces a step's egress.allow list:
+      # opening the network and calling it filtered is the one thing it will not do. So their cases
+      # are written and cannot run, and this says so out loud rather than leaving a brick quietly
       # untested. What each does is covered by the module job, against a server in the test's own
-      # process for http-request, and against SQLite, PostgreSQL and MySQL for sql-query.
+      # process for http-request and smtp-send, and against SQLite, PostgreSQL and MySQL for
+      # sql-query.
       #
-      # Delete this step and add both to the loop above when the proxy lands in v0.9.0.
-      - name: the cases http-request and sql-query cannot run yet
+      # Delete this step and add the three to the loop above when the proxy lands in v0.9.0.
+      - name: the cases http-request, sql-query and smtp-send cannot run yet
         run: |
-          for brick in http-request sql-query; do
+          for brick in http-request sql-query smtp-send; do
             echo "$brick declares network: egress, which the driver refuses until the runner proxy exists."
             echo "Its $(ls -1 $brick/cases | wc -l | tr -d ' ') cases are committed and will run when v0.9.0 lands the proxy."
           done
-          echo "What they do is held in http-request/request_test.go and sql-query/query_test.go."
+          echo "What they do is held in http-request/request_test.go, sql-query/query_test.go and smtp-send/send_test.go."
