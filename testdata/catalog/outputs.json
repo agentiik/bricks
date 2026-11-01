@@ -1,1 +1,141 @@
-{}
+{
+  "lines": {
+    "items": [
+      {
+        "data": {
+          "qty": 3,
+          "ref": "a1",
+          "sku": "pen",
+          "total": 6
+        },
+        "files": [],
+        "id": "validate.in.0#0"
+      },
+      {
+        "data": {
+          "qty": 1,
+          "ref": "a1",
+          "sku": "pad",
+          "total": 5
+        },
+        "files": [],
+        "id": "validate.in.0#1"
+      },
+      {
+        "data": {
+          "qty": 2,
+          "ref": "b2",
+          "sku": "ink",
+          "total": 14
+        },
+        "files": [],
+        "id": "validate.in.1#0"
+      }
+    ],
+    "meta": {
+      "attempt": 1,
+      "count": 3,
+      "port": "out",
+      "step": "flatten"
+    }
+  },
+  "refused": {
+    "items": [
+      {
+        "data": {
+          "item": {
+            "lines": [],
+            "ref": "c3"
+          },
+          "violations": [
+            {
+              "keyword": "/properties/lines/minItems",
+              "message": "minItems: got 0, want 1",
+              "path": "/lines"
+            }
+          ]
+        },
+        "files": [],
+        "id": "validate.in.2"
+      }
+    ],
+    "meta": {
+      "attempt": 1,
+      "count": 1,
+      "port": "invalid",
+      "step": "validate"
+    }
+  },
+  "rows": {
+    "items": [
+      {
+        "data": {
+          "qty": "3",
+          "ref": "a1",
+          "sku": "pen",
+          "total": "6"
+        },
+        "files": [],
+        "id": "table-13b4f5ecedf6#0"
+      },
+      {
+        "data": {
+          "qty": "1",
+          "ref": "a1",
+          "sku": "pad",
+          "total": "5"
+        },
+        "files": [],
+        "id": "table-13b4f5ecedf6#1"
+      },
+      {
+        "data": {
+          "qty": "2",
+          "ref": "b2",
+          "sku": "ink",
+          "total": "14"
+        },
+        "files": [],
+        "id": "table-13b4f5ecedf6#2"
+      }
+    ],
+    "meta": {
+      "attempt": 1,
+      "count": 3,
+      "port": "out",
+      "step": "rows"
+    }
+  },
+  "table": {
+    "items": [
+      {
+        "data": {
+          "attached": true,
+          "bytes": 52,
+          "columns": [
+            "qty",
+            "ref",
+            "sku",
+            "total"
+          ],
+          "rows": 3
+        },
+        "files": [
+          {
+            "media_type": "text/csv",
+            "name": "lines.csv",
+            "sha256": "13b4f5ecedf623f418e027ffaf5a6668ba6de3872704e37c1248ae07deb61f02",
+            "size": 52
+          }
+        ],
+        "id": "table-13b4f5ecedf6"
+      }
+    ],
+    "meta": {
+      "attempt": 1,
+      "count": 1,
+      "port": "out",
+      "step": "table"
+    }
+  }
+}
