@@ -37,7 +37,7 @@ A case is documents and nothing else, which is what makes one writable by hand:
 
 A port the manifest declares and a case writes no expectation for is expected to publish nothing.
 
-`catalog_test.go` holds every directory to this layout before any image is built. Each directory but `internal` is a brick named as its manifest names it; the manifest validates against the brick schema of [`agentiik/schemas`](https://github.com/agentiik/schemas), which refuses a root account; the image runs as the account the manifest declares; and every port the manifest declares has a case that feeds it or expects it. It reads the schema from `BRICK_SCHEMA`, or from a checkout of `agentiik/schemas` beside this one, and skips without either; CI always sets it.
+`catalog_test.go` holds every directory to this layout before any image is built. Each directory but `internal` is a brick named as its manifest names it; the manifest validates against the brick schema of [`agentiik/schemas`](https://github.com/agentiik/schemas), which refuses a root account; the image runs as the account the manifest declares; every port the manifest declares has a case that feeds it or expects it; and every parameter, port and definition carries a description and examples its own schema accepts, every member of an object a description, since the manifest is the only source of the catalog page and `brick.get`. It reads the schema from `BRICK_SCHEMA`, or from a checkout of `agentiik/schemas` beside this one, and skips without either; CI always sets it.
 
 ## Exit codes and size rules
 

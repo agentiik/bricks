@@ -11,11 +11,23 @@ metadata:
 spec:
   inputs:
     in:
-      schema: { type: object }
+      schema:
+        type: object
+        description: >-
+          to_items: an item attaching the workbook as a file, whatever its data. to_table: any item, which becomes one row with a column per member of its data.
+        examples:
+          - {}
+          - { ref: a1, amount: 1200, paid: true }
 
   outputs:
     out:
-      schema: { type: object }
+      schema:
+        type: object
+        description: >-
+          to_items: one item per row, a member per column, a number cell as a number, a boolean as a boolean and an empty cell as null. to_table: one item attaching the workbook, whose data says how many rows and bytes it holds and which columns, in the order written.
+        examples:
+          - { ref: a1, amount: 1200, paid: true, note: null }
+          - { rows: 2, bytes: 1857, columns: [amount, paid, ref] }
 
   params:
     direction:

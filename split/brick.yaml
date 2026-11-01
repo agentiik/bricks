@@ -12,11 +12,21 @@ metadata:
 spec:
   inputs:
     in:
-      schema: { type: object }
+      schema:
+        type: object
+        description: >-
+          An item whose data carries an array under the field the field parameter names.
+        examples:
+          - { customer: acme, lines: [{ sku: a, qty: 2 }, { sku: b, qty: 1 }] }
 
   outputs:
     out:
-      schema: { type: object }
+      schema:
+        type: object
+        description: >-
+          One item per element: the original's data with the field replaced by that element, identified as the original's identity followed by #0, #1 and so on, with the original's attachments.
+        examples:
+          - { customer: acme, lines: { sku: a, qty: 2 } }
 
   params:
     field:

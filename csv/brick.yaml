@@ -11,11 +11,23 @@ metadata:
 spec:
   inputs:
     in:
-      schema: { type: object }
+      schema:
+        type: object
+        description: >-
+          to_items: an item attaching the table as a file, whatever its data. to_table: any item, which becomes one row with a column per member of its data.
+        examples:
+          - {}
+          - { ref: a1, amount: 1200, currency: EUR }
 
   outputs:
     out:
-      schema: { type: object }
+      schema:
+        type: object
+        description: >-
+          to_items: one item per row, with a member per column, every value a string as the table wrote it. to_table: one item attaching the table, whose data says how many rows and bytes it holds and which columns, in the order written.
+        examples:
+          - { ref: a1, amount: "1200", currency: EUR }
+          - { rows: 3, bytes: 78, columns: [charged, currency, ref, settled] }
 
   params:
     direction:
@@ -26,6 +38,7 @@ spec:
         to_items reads the table each item attaches and publishes one item per row. to_table
         reads the whole batch and publishes one item attaching the table as an artifact, however
         small, so that a step below reads it one way whatever its size.
+      examples: [to_items, to_table]
     file:
       type: string
       description: >-
@@ -36,12 +49,14 @@ spec:
       type: string
       default: table.csv
       description: to_table only. What the table's artifact is called.
+      examples: [charges.csv]
     header:
       type: boolean
       default: true
       description: >-
         Whether the first record names the columns. Reading without a header names them by
         position, c0 upwards; writing without one omits it.
+      examples: [true, false]
     delimiter:
       type: string
       default: ","
@@ -54,8 +69,9 @@ spec:
       description: >-
         The size above which a value of an item travels as an artifact rather than in the
         envelope, a cell of to_items among them, written to a JSON artifact of its own. The table
-        of to_table is always an artifact. The default is the documented inline_max_bytes, and a step on an installation that
-        tuned the setting passes its own.
+        of to_table is always an artifact. The default is the documented inline_max_bytes, and a
+        step on an installation that tuned the setting passes its own.
+      examples: [262144, 65536]
 
   runtime:
     network: none

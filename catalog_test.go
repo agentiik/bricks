@@ -247,6 +247,134 @@ func TestEveryPortHasAnExample(t *testing.T) {
 	}
 }
 
+// Every parameter, port and definition a manifest publishes carries a description and examples,
+// and every member of an object it describes carries a description of its own. The manifest is the
+// only source of the catalog page, brick.get and agentiik://brick/{name}, so what it leaves unsaid
+// is unsaid everywhere a person or a client looks for it. Each example is also held to the schema
+// it illustrates, since an example the brick would refuse teaches the wrong thing with authority.
+//
+// The members need no examples of their own: the example of the object they belong to shows them.
+func TestEveryKeywordIsDocumented(t *testing.T) {
+	for _, b := range bricks(t) {
+		j, err := json.Marshal(b.manifest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(j))
+		if err != nil {
+			t.Fatal(err)
+		}
+		c := jsonschema.NewCompiler()
+		c.DefaultDraft(jsonschema.Draft2020)
+		if err := c.AddResource("brick.json", doc); err != nil {
+			t.Fatal(err)
+		}
+		m := doc.(map[string]any)
+
+		// explained holds one schema to a description and, where asked, examples it accepts.
+		explained := func(where, pointer string, s map[string]any, examples bool) {
+			if d, _ := s["description"].(string); strings.TrimSpace(d) == "" {
+				t.Errorf("%s/brick.yaml: %s has no description", b.name, where)
+			}
+			members(t, b.name, where, s)
+			if !examples {
+				return
+			}
+			ex, _ := s["examples"].([]any)
+			if len(ex) == 0 {
+				t.Errorf("%s/brick.yaml: %s has no examples", b.name, where)
+				return
+			}
+			schema, err := c.Compile("brick.json#" + pointer)
+			if err != nil {
+				t.Errorf("%s/brick.yaml: %s does not compile: %s", b.name, where, err)
+				return
+			}
+			for i, e := range ex {
+				if err := schema.Validate(e); err != nil {
+					t.Errorf("%s/brick.yaml: example %d of %s is one the schema refuses:\n%s", b.name, i, where, err)
+				}
+			}
+		}
+
+		params, _ := lookup(m, "spec", "params").(map[string]any)
+		for name, p := range params {
+			p, _ := p.(map[string]any)
+			// required: true is the manifest's own keyword and not JSON Schema's, so the schema the
+			// examples are held to is the parameter without it, added as a resource of its own.
+			plain := map[string]any{}
+			for k, v := range p {
+				if _, flag := v.(bool); k == "required" && flag {
+					continue
+				}
+				plain[k] = v
+			}
+			if err := c.AddResource("param-"+name+".json", plain); err != nil {
+				t.Fatal(err)
+			}
+			if d, _ := p["description"].(string); strings.TrimSpace(d) == "" {
+				t.Errorf("%s/brick.yaml: the parameter %s has no description", b.name, name)
+			}
+			ex, _ := p["examples"].([]any)
+			if len(ex) == 0 {
+				t.Errorf("%s/brick.yaml: the parameter %s has no examples", b.name, name)
+				continue
+			}
+			schema, err := c.Compile("param-" + name + ".json")
+			if err != nil {
+				t.Errorf("%s/brick.yaml: the parameter %s does not compile: %s", b.name, name, err)
+				continue
+			}
+			for i, e := range ex {
+				if err := schema.Validate(e); err != nil {
+					t.Errorf("%s/brick.yaml: example %d of the parameter %s is one its schema refuses:\n%s", b.name, i, name, err)
+				}
+			}
+		}
+
+		for _, side := range []string{"inputs", "outputs"} {
+			ports, _ := lookup(m, "spec", side).(map[string]any)
+			for port := range ports {
+				where := "the port " + port + " of " + side
+				s, _ := lookup(ports, port, "schema").(map[string]any)
+				if s == nil {
+					t.Errorf("%s/brick.yaml: %s has no schema, and the catalog has nothing to show of it", b.name, where)
+					continue
+				}
+				// A port that refers to a definition is documented by the definition, which is
+				// held below.
+				if _, ok := s["$ref"]; ok {
+					continue
+				}
+				explained(where, "/spec/"+side+"/"+port+"/schema", s, true)
+			}
+		}
+
+		definitions, _ := lookup(m, "spec", "definitions").(map[string]any)
+		for name, d := range definitions {
+			d, _ := d.(map[string]any)
+			explained("the definition "+name, "/spec/definitions/"+name, d, true)
+		}
+	}
+}
+
+// members holds every member of an object schema to a description, through nested objects and
+// arrays of them.
+func members(t *testing.T, brick, where string, s map[string]any) {
+	t.Helper()
+	props, _ := s["properties"].(map[string]any)
+	for name, p := range props {
+		p, _ := p.(map[string]any)
+		if d, _ := p["description"].(string); strings.TrimSpace(d) == "" {
+			t.Errorf("%s/brick.yaml: the member %s of %s has no description", brick, name, where)
+		}
+		members(t, brick, where+"."+name, p)
+	}
+	if items, ok := s["items"].(map[string]any); ok {
+		members(t, brick, where+"[]", items)
+	}
+}
+
 // lookup follows keys through a decoded document, and answers nil where any of them is missing.
 func lookup(doc any, keys ...string) any {
 	for _, k := range keys {

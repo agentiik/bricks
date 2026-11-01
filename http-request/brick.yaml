@@ -31,6 +31,8 @@ spec:
       type: string
       enum: [GET, POST, PUT, PATCH, DELETE]
       default: GET
+      description: The method every item is requested with, unless the item carries its own.
+      examples: [GET, POST]
     headers:
       type: object
       additionalProperties: { type: string }
@@ -40,7 +42,10 @@ spec:
       type: string
       pattern: "^[0-9]+(ms|s|m|h|d)$"
       default: 30s
-      description: One number and one unit, as every duration in the language is written.
+      description: >-
+        How long one request may take, from connecting to the last byte of the body, before the
+        item is published on error. One number and one unit, as every duration in the language is written.
+      examples: [30s, 500ms, 2m]
     inline_max_bytes:
       type: integer
       minimum: 0
@@ -49,6 +54,7 @@ spec:
         The size above which a response body is attached as an artifact rather than carried in
         the envelope, and above which any other value published is written to a JSON artifact of
         its own. The default is the documented inline_max_bytes.
+      examples: [262144, 65536]
 
   secrets:
     - name: bearer
@@ -74,31 +80,47 @@ spec:
       type: object
       description: What an item may add to the step's own parameters. Every member is optional.
       properties:
-        url: { type: string, format: uri }
-        method: { type: string, enum: [GET, POST, PUT, PATCH, DELETE] }
-        headers: { type: object, additionalProperties: { type: string } }
-        query: { type: object, additionalProperties: { type: string } }
+        url: { type: string, format: uri, description: The url this item is requested at, in place of the step's. }
+        method: { type: string, enum: [GET, POST, PUT, PATCH, DELETE], description: The method this item is requested with, in place of the step's. }
+        headers: { type: object, additionalProperties: { type: string }, description: Merged over the step's headers, key by key. }
+        query: { type: object, additionalProperties: { type: string }, description: Added to the url's query string. }
         body: { description: Sent as the request body, as JSON unless the step set a Content-Type. }
+      examples:
+        - { method: POST, body: { customer: C-1042, cents: 129050 } }
+        - { url: "https://api.billing.example.com/v1/charges/ch_1", query: { expand: customer } }
     response:
       type: object
+      description: A response whose status is below 400, published on out under the identity of the item that asked for it.
       required: [url, method, status, headers, duration_ms]
       properties:
-        url: { type: string }
-        method: { type: string }
-        status: { type: integer }
-        headers: { type: object, additionalProperties: { type: string } }
-        duration_ms: { type: integer }
+        url: { type: string, description: The url requested, query string included. }
+        method: { type: string, description: The method requested with. }
+        status: { type: integer, description: The status of the response. }
+        headers: { type: object, additionalProperties: { type: string }, description: "The response's headers, one value each: the first, for a header sent more than once." }
+        duration_ms: { type: integer, description: From sending the request to reading the last byte of the body. }
         body: { description: The response body, as JSON where the response said it was JSON and as text otherwise. Absent when it was attached. }
         body_attached: { type: string, description: The name of the artifact the body was attached as, when it was too large to carry. }
+      examples:
+        - { url: "https://api.billing.example.com/v1/charges", method: POST, status: 201, headers: { Content-Type: application/json }, duration_ms: 182, body: { id: ch_1, status: succeeded } }
     failure:
       type: object
-      required: [message]
+      description: >-
+        A request that did not succeed, published on error under the identity of the item that
+        asked for it: a response with a status of 400 or above, which carries its status, or no
+        response at all, which carries a message and never a status, since inventing one would make
+        a filter on status >= 400 miss it.
+      anyOf:
+        - required: [status]
+        - required: [message]
       properties:
-        url: { type: string }
-        method: { type: string }
+        url: { type: string, description: The url requested, query string included. }
+        method: { type: string, description: The method requested with. }
         status: { type: integer, description: The status, where a response arrived. Absent when none did. }
-        headers: { type: object, additionalProperties: { type: string } }
-        duration_ms: { type: integer }
+        headers: { type: object, additionalProperties: { type: string }, description: The response's headers, where a response arrived. }
+        duration_ms: { type: integer, description: "From sending the request to reading the last byte of the body, where a response arrived." }
         body: { description: The body of the response that was not a success. }
-        body_attached: { type: string }
+        body_attached: { type: string, description: The name of the artifact the body was attached as, when it was too large to carry. }
         message: { type: string, description: What went wrong, where no response arrived at all. }
+      examples:
+        - { url: "https://api.billing.example.com/v1/charges", method: POST, status: 402, headers: { Content-Type: application/json }, duration_ms: 95, body: { error: card_declined } }
+        - { url: "https://api.billing.example.com/v1/charges", method: POST, message: "context deadline exceeded (Client.Timeout exceeded while awaiting headers)" }

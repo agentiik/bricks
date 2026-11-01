@@ -11,27 +11,43 @@ metadata:
 spec:
   inputs:
     in:
-      schema: { type: object }
+      schema:
+        type: object
+        description: Any item. Its data is the payload held to the schema.
+        examples:
+          - { ref: a1, amount: 1200 }
 
   outputs:
     ok:
-      schema: { type: object }
+      schema:
+        type: object
+        description: The items the schema accepts, unchanged.
+        examples:
+          - { ref: a1, amount: 1200 }
     invalid:
       schema:
         type: object
+        description: >-
+          One item per item the schema refuses, under the same identity and with the same
+          attachments: the payload as it arrived, and every departure from the schema found in it.
         required: [item, violations]
         properties:
           item:
             description: The payload as it arrived, unchanged.
           violations:
             type: array
+            description: Every departure found, not only the first, so that one look fixes the item.
             items:
               type: object
               required: [path, keyword, message]
               properties:
                 path: { type: string, description: "JSON Pointer into the payload, empty for the payload itself." }
                 keyword: { type: string, description: "Where in the schema the departure was found." }
-                message: { type: string }
+                message: { type: string, description: "What the departure is, in words." }
+        examples:
+          - item: { ref: b2, amount: -5 }
+            violations:
+              - { path: /amount, keyword: /properties/amount/minimum, message: "minimum: got -5, want 1" }
 
   params:
     schema:
