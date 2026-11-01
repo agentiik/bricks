@@ -13,11 +13,12 @@ A brick reads an envelope at `/agk/in/<port>/envelope.json`, writes one envelope
 | [`csv`](csv) | Converts a table into one item per row, and a batch of items into a table. |
 | [`xlsx`](xlsx) | Converts a spreadsheet into one item per row, a cell keeping its type, and a batch of items into a spreadsheet. The standard library alone reads and writes it. |
 | [`http-request`](http-request) | Issues one HTTP request per item and publishes the response. |
+| [`sql-query`](sql-query) | Runs one SQL statement against PostgreSQL, MySQL or SQLite, once per item or once alone, in one transaction, and publishes each row as an item. The connection string is the secret `dsn`. |
 | [`aggregate`](aggregate) | Groups items by the value of one field, one item per group, the other half of `split`. |
 | [`template`](template) | Renders a Go text/template per item, into a field of its data or an artifact it carries. |
 | [`split`](split) | Splits one item into several, one per element of an array field. A shell script and jq, with no helper. |
 
-The rest of the catalog the documentation names, `sql-query`, `s3`, `smtp-send`, `imap-fetch`, `wait` and `exec`, is v0.8.0 work. The first four are v0.1.0 because they are what a workflow needs to do anything at all.
+The rest of the catalog the documentation names, `s3`, `smtp-send`, `imap-fetch`, `wait` and `exec`, is v0.8.0 work. The first four are v0.1.0 because they are what a workflow needs to do anything at all.
 
 ## A brick is a directory
 
@@ -41,7 +42,7 @@ A port the manifest declares and a case writes no expectation for is expected to
 
 ## Exit codes and size rules
 
-A brick leaves through `envelope.Die` and a named band: `Failed` (1) for an application failure, `Transient` (100) for a far side that may answer next time, `Invalid` (120) for input it will refuse on every attempt. `Die` turns any other code into 1, since 121 and above are the runner's and the runtime's. `exits_test.go` holds every brick to that and to a case leaving with 120; no brick of the catalog has a transient failure yet, and `http-request` answers a failed request on its `error` port rather than by its exit code.
+A brick leaves through `envelope.Die` and a named band: `Failed` (1) for an application failure, `Transient` (100) for a far side that may answer next time, `Invalid` (120) for input it will refuse on every attempt. `Die` turns any other code into 1, since 121 and above are the runner's and the runtime's. `exits_test.go` holds every brick to that and to a case leaving with 120; `sql-query` leaves with `Transient` for a database it could not reach, and `http-request` answers a failed request on its `error` port rather than by its exit code.
 
 `envelope.Out` holds every envelope to the size rules before writing it, so that a brick never leaves what the runner would refuse with 121. A value of `data` above `inline_max_bytes` is written to `/agk/out/files/<item>-<field>.json` and referenced in `files[]`, the name and the bytes the engine itself spills by; an envelope still above `envelope_max_bytes`, or holding more than `max_items`, fails the step as an application failure naming the rule, and the step splits its batch upstream. The limits are the documented defaults, since the contract gives a brick no way to read its installation's, and `csv` and `http-request` take `inline_max_bytes` as a parameter.
 
@@ -80,6 +81,12 @@ The highest release and `main` are built again every Monday, and Dependabot prop
 ## http-request cannot be run yet
 
 Its manifest declares `network: egress`, and the driver refuses that posture until the runner has the proxy that enforces a step's `egress.allow` list: opening the network and calling it filtered is the one thing it will not do. Its four cases are committed and will run when the proxy lands in v0.9.0. What it does with a request is held in `http-request/request_test.go`, against a server in the test's own process.
+
+## sql-query cannot be run yet either
+
+It declares `network: egress` for the same reason, since PostgreSQL and MySQL are reached over the network, and the posture is the brick's, so its SQLite half waits too. Its two cases are committed. What it does with a statement is held in `sql-query/query_test.go`: against SQLite in the test's own process, and against PostgreSQL and MySQL where `SQL_QUERY_POSTGRES` and `SQL_QUERY_MYSQL` name a server, as the module job does with two service containers.
+
+The connection string is the secret `dsn`, a URL: `postgres://`, `mysql://` or `sqlite://` followed by the database. A SQLite file is opened read-only, since one a container can reach is in the read-only repository or an attachment.
 
 ## No Agentiik library
 
