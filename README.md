@@ -11,6 +11,7 @@ A brick reads an envelope at `/agk/in/<port>/envelope.json`, writes one envelope
 | [`jq`](jq) | Transforms and filters items through a jq expression. |
 | [`schema-validate`](schema-validate) | Holds every item to a JSON Schema and routes the ones that do not meet it to a port of their own. |
 | [`csv`](csv) | Converts a table into one item per row, and a batch of items into a table. |
+| [`xlsx`](xlsx) | Converts a spreadsheet into one item per row, a cell keeping its type, and a batch of items into a spreadsheet. The standard library alone reads and writes it. |
 | [`http-request`](http-request) | Issues one HTTP request per item and publishes the response. |
 | [`aggregate`](aggregate) | Groups items by the value of one field, one item per group, the other half of `split`. |
 | [`template`](template) | Renders a Go text/template per item, into a field of its data or an artifact it carries. |
