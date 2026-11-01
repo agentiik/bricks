@@ -8,25 +8,18 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
-	"text/template"
 
 	"github.com/agentiik/bricks/internal/envelope"
+	"github.com/agentiik/bricks/internal/render"
 )
 
 const (
 	in  = "in"
 	out = "out"
-
-	// repoDir is where the workflow repository tree is bound. A path parameter is resolved
-	// against it and never against the working directory, which is this brick's own.
-	repoDir = "/agk/repo"
 )
 
 type settings struct {
@@ -50,7 +43,7 @@ func main() {
 
 	published := make([]envelope.Item, 0, len(batch.Items))
 	for _, item := range batch.Items {
-		text, err := render("template", s.text, item)
+		text, err := render.Render("template", s.text, item)
 		if err != nil {
 			envelope.Die(envelope.Invalid, "item %s: %s", item.ID, err)
 		}
@@ -65,7 +58,7 @@ func main() {
 		if s.into == "field" {
 			data[s.field] = text
 		} else {
-			name, err := render("name", s.name, item)
+			name, err := render.Render("name", s.name, item)
 			if err != nil {
 				envelope.Die(envelope.Invalid, "item %s: %s", item.ID, err)
 			}
@@ -105,9 +98,9 @@ func configure() (settings, error) {
 	case inline && fromFile:
 		return s, fmt.Errorf("template and template_path were both supplied: a step gives the template inline or names a file of the repository, and one of the two")
 	case !inline && !fromFile:
-		return s, fmt.Errorf("no template: template renders one per item, given inline as template or as template_path relative to %s", repoDir)
+		return s, fmt.Errorf("no template: template renders one per item, given inline as template or as template_path relative to %s", render.RepoDir)
 	case fromFile:
-		if s.text, err = read(at); err != nil {
+		if s.text, err = render.Read("template_path", at); err != nil {
 			return s, err
 		}
 	}
@@ -131,52 +124,9 @@ func configure() (settings, error) {
 	// Parsed once here, so that a template that does not parse is refused before any item is
 	// read, naming the step's mistake rather than the first item's.
 	for _, t := range []struct{ what, text string }{{"template", s.text}, {"name", s.name}} {
-		if _, err := parse(t.what, t.text, ""); err != nil {
+		if _, err := render.Parse(t.what, t.text, ""); err != nil {
 			return s, err
 		}
 	}
 	return s, nil
-}
-
-func parse(what, text, id string) (*template.Template, error) {
-	t, err := template.New(what).Option("missingkey=error").Funcs(template.FuncMap{
-		"id": func() string { return id },
-		"json": func(v any) (string, error) {
-			b, err := json.Marshal(v)
-			return string(b), err
-		},
-	}).Parse(text)
-	if err != nil {
-		return nil, fmt.Errorf("the %s does not parse: %w", what, err)
-	}
-	return t, nil
-}
-
-// render fills one template with one item: its data as dot, its identity as id.
-func render(what, text string, item envelope.Item) (string, error) {
-	t, err := parse(what, text, item.ID)
-	if err != nil {
-		return "", err
-	}
-	var b bytes.Buffer
-	if err := t.Execute(&b, item.Data); err != nil {
-		return "", fmt.Errorf("the %s cannot be filled: %w", what, err)
-	}
-	return b.String(), nil
-}
-
-// read takes the template out of the repository tree, refusing a path that leaves it.
-func read(at string) (string, error) {
-	if at == "" || filepath.IsAbs(at) {
-		return "", fmt.Errorf("template_path %q names no file of the repository: it is a path relative to %s", at, repoDir)
-	}
-	full := filepath.Join(repoDir, at)
-	if !strings.HasPrefix(full, repoDir+string(filepath.Separator)) {
-		return "", fmt.Errorf("template_path %s leaves %s: a template is a file of the commit this run pinned", at, repoDir)
-	}
-	b, err := os.ReadFile(full)
-	if err != nil {
-		return "", fmt.Errorf("the template could not be read at %s: %w", full, err)
-	}
-	return string(b), nil
 }
