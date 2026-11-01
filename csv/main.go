@@ -71,6 +71,11 @@ func main() {
 	if err != nil {
 		envelope.Die(envelope.Invalid, "%s", err)
 	}
+	// The threshold the step chose holds for every value this brick publishes, the rows it
+	// reads included, and not for the table alone.
+	if _, err := envelope.Into(params, "inline_max_bytes", &task.Limits.InlineMax); err != nil {
+		envelope.Die(envelope.Invalid, "%s", err)
+	}
 
 	batch, err := task.In(in)
 	if err != nil {

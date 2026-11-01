@@ -74,6 +74,9 @@ type Task struct {
 	Shard   string
 	Ports   []string
 
+	// Limits are the size rules Out holds every envelope to. Zero values are the defaults.
+	Limits Limits
+
 	// Root is prefixed to every path of the contract, and it is empty in a container.
 	//
 	// It exists for the one case the contract cannot serve: a test on the machine a brick
@@ -99,6 +102,7 @@ func Read() Task {
 		Attempt: attempt,
 		Shard:   os.Getenv("AGK_SHARD"),
 		Ports:   split(os.Getenv("AGK_OUT_PORTS")),
+		Limits:  DefaultLimits,
 	}
 }
 
@@ -139,9 +143,20 @@ func (t Task) In(port string) (Envelope, error) {
 // many items the envelope holds and the runner refuses an envelope that says otherwise. A
 // brick with nothing to say on a port does not call this at all: a port nobody wrote publishes
 // an empty envelope, which is what lets a brick write only the port it has news on.
+//
+// The envelope is held to the size rules first: a value above inline_max_bytes is spilled to an
+// artifact, and an envelope still above envelope_max_bytes, or holding more than max_items, is
+// refused with ErrTooLarge, since the runner would refuse it with 121 and say less about why.
 func (t Task) Out(port string, items []Item) error {
 	if items == nil {
 		items = []Item{}
+	}
+	limits := t.Limits.orDefault()
+	if len(items) > limits.MaxItems {
+		return fmt.Errorf("%w: port %s holds %d items and max_items is %d", ErrTooLarge, port, len(items), limits.MaxItems)
+	}
+	if err := t.spill(port, items, limits.InlineMax); err != nil {
+		return err
 	}
 	e := Envelope{
 		Meta: Meta{
@@ -160,6 +175,9 @@ func (t Task) Out(port string, items []Item) error {
 	b, err := json.Marshal(e)
 	if err != nil {
 		return fmt.Errorf("the envelope for port %s could not be written: %w", port, err)
+	}
+	if len(b) > limits.EnvelopeMax {
+		return fmt.Errorf("%w: the envelope on port %s weighs %d bytes with its heavy values spilled, and envelope_max_bytes is %d", ErrTooLarge, port, len(b), limits.EnvelopeMax)
 	}
 	ports := t.at(outPorts)
 	if err := os.MkdirAll(ports, 0o755); err != nil {

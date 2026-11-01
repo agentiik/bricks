@@ -30,7 +30,22 @@ const (
 // Standard error is the log the runner captures, masks and keeps; standard output is the
 // shorthand for the single out port, so a diagnostic written there would arrive as a result.
 // That is the whole reason a brick never prints its troubles on standard output.
+//
+// A code outside the bands a brick may leave by, 0 or anything above 120, is a bug in the brick
+// and not something to hand the runner: 121 to 124 are the runner's and 125 and above are the
+// runtime's, and a brick leaving with one would be read as a broken contract or a broken machine.
+// Die says so and leaves as an application failure instead.
 func Die(code int, format string, args ...any) {
 	fmt.Fprintf(os.Stderr, format+"\n", args...)
-	os.Exit(code)
+	os.Exit(Leaves(code))
+}
+
+// Leaves is the code Die leaves with for the code it was given: the code itself where a brick
+// may leave by it, and Failed where it may not.
+func Leaves(code int) int {
+	if code < Failed || code > Invalid {
+		fmt.Fprintf(os.Stderr, "exit code %d is not a brick's to leave with: 1 to 99 is a failure, 100 to 119 transient, 120 invalid input, and the rest is the runner's or the runtime's\n", code)
+		return Failed
+	}
+	return code
 }
