@@ -5,8 +5,8 @@
 # author's to make and nobody else's.
 #
 # A branch of this repository is exempt: only somebody who can already push here can open one,
-# and that is the maintainer, whose own work needs no certificate of origin to be licensed by
-# him. A contribution is what arrives from outside, which is a fork.
+# and that is the maintainer, whose own work needs no certificate of origin to be licensed. A
+# contribution is what arrives from outside, which is a fork.
 name: dco
 
 on:
