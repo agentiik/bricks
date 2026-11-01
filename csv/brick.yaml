@@ -24,8 +24,8 @@ spec:
       required: true
       description: >-
         to_items reads the table each item attaches and publishes one item per row. to_table
-        reads the whole batch and publishes one item carrying the table, inline while it fits
-        and as an attached artifact once it does not.
+        reads the whole batch and publishes one item attaching the table as an artifact, however
+        small, so that a step below reads it one way whatever its size.
     file:
       type: string
       description: >-
@@ -35,7 +35,7 @@ spec:
     table_name:
       type: string
       default: table.csv
-      description: to_table only. What the artifact is called when the table is attached.
+      description: to_table only. What the table's artifact is called.
     header:
       type: boolean
       default: true
@@ -52,9 +52,9 @@ spec:
       minimum: 0
       default: 262144
       description: >-
-        The size above which a value travels as an artifact rather than in the envelope: the
-        table in to_table, and any cell in to_items, which is written to a JSON artifact of its
-        own. The default is the documented inline_max_bytes, and a step on an installation that
+        The size above which a value of an item travels as an artifact rather than in the
+        envelope, a cell of to_items among them, written to a JSON artifact of its own. The table
+        of to_table is always an artifact. The default is the documented inline_max_bytes, and a step on an installation that
         tuned the setting passes its own.
 
   runtime:

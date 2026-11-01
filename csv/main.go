@@ -41,11 +41,6 @@ const (
 	// envelope and under their own names.
 	inDir = "/agk/in"
 
-	// defaultInlineMax is the documented inline_max_bytes: above it, a value travels as an
-	// artifact and is referenced rather than carried. The default is the documentation's,
-	// and a step on an installation that tuned the setting passes its own.
-	defaultInlineMax = 262144
-
 	// defaultTable is what the artifact is called when a step does not name it.
 	defaultTable = "table.csv"
 )
@@ -172,7 +167,11 @@ func rows(task envelope.Task, params map[string]json.RawMessage, batch envelope.
 	return published, nil
 }
 
-// table turns the whole batch into one table, carried inline or attached.
+// table turns the whole batch into one table, always attached.
+//
+// Never inline, however small: a step below reads a table as a file whichever size it is, so a
+// threshold deciding where it is would make one workflow read it two ways and break on the
+// first batch that crossed it.
 func table(task envelope.Task, params map[string]json.RawMessage, batch envelope.Envelope, delimiter rune) ([]envelope.Item, error) {
 	name := defaultTable
 	if _, err := envelope.Into(params, "table_name", &name); err != nil {
@@ -185,14 +184,6 @@ func table(task envelope.Task, params map[string]json.RawMessage, batch envelope
 	if _, err := envelope.Into(params, "header", &header); err != nil {
 		return nil, err
 	}
-	inlineMax := defaultInlineMax
-	if _, err := envelope.Into(params, "inline_max_bytes", &inlineMax); err != nil {
-		return nil, err
-	}
-	if inlineMax < 0 {
-		return nil, fmt.Errorf("inline_max_bytes says %d: it is the size above which a value travels as an artifact, and it is never negative", inlineMax)
-	}
-
 	columns := union(batch.Items)
 	content, err := write(batch.Items, columns, delimiter, header)
 	if err != nil {
@@ -203,27 +194,16 @@ func table(task envelope.Task, params map[string]json.RawMessage, batch envelope
 	// publish one identity and the store holds one object, which is the property the whole
 	// system is built to keep.
 	digest := envelope.Digest(content)
+	file, err := task.Attach(out, name, "text/csv", content)
+	if err != nil {
+		return nil, err
+	}
 	data := map[string]any{
 		"rows":    len(batch.Items),
 		"columns": asStrings(columns),
 		"bytes":   len(content),
 	}
-	item := envelope.Item{ID: "table-" + digest[:12], Data: data, Files: []envelope.File{}}
-
-	if len(content) <= inlineMax {
-		// Small enough to travel in the envelope, which is what the size rules allow
-		// and what saves a downstream step from opening a file to read four rows.
-		data["table"] = string(content)
-		data["attached"] = false
-		return []envelope.Item{item}, nil
-	}
-	file, err := task.Attach(out, name, "text/csv", content)
-	if err != nil {
-		return nil, err
-	}
-	data["attached"] = true
-	item.Files = []envelope.File{file}
-	return []envelope.Item{item}, nil
+	return []envelope.Item{{ID: "table-" + digest[:12], Data: data, Files: []envelope.File{file}}}, nil
 }
 
 // attachment is the table an item carries, by name or by being its only one.
