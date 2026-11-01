@@ -96,6 +96,25 @@ jobs:
             echo "::endgroup::"
           done
 
+      # The same images again, as steps of one workflow run by the engine: the manifests read off
+      # the images, the steps validated against them, every envelope carried from one container
+      # to the next. What the run's outputs hold is compared with what testdata/catalog expects,
+      # the run identifier, the publication times and the artifact URIs held aside, as agk brick
+      # test holds them aside above; the item identities are compared, since the engine derives
+      # the ones it feeds and every brick derives its own.
+      - name: run the catalog through the engine
+        run: |
+          set -eu
+          agk validate -f testdata/catalog/agentiik.yaml
+          agk run --local -f testdata/catalog/agentiik.yaml --inputs testdata/catalog/inputs.json -o json > "$RUNNER_TEMP/outputs.json"
+          normalise='walk(if type == "object" then del(.run_id, .produced_at, .uri) else . end)'
+          jq -S "$normalise" "$RUNNER_TEMP/outputs.json" > "$RUNNER_TEMP/got.json"
+          jq -S "$normalise" testdata/catalog/outputs.json > "$RUNNER_TEMP/want.json"
+          if ! diff -u "$RUNNER_TEMP/want.json" "$RUNNER_TEMP/got.json"; then
+            echo "::error::the catalog workflow's outputs differ from testdata/catalog/outputs.json"
+            exit 1
+          fi
+
       # http-request declares network: egress, and the driver refuses that posture until the
       # runner has the proxy that enforces a step's egress.allow list: opening the network and
       # calling it filtered is the one thing it will not do. So its cases are written and cannot

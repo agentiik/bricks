@@ -1,0 +1,7 @@
+{
+  "orders": [
+    { "ref": "a1", "lines": [ { "sku": "pen", "qty": 3, "price": 2 }, { "sku": "pad", "qty": 1, "price": 5 } ] },
+    { "ref": "b2", "lines": [ { "sku": "ink", "qty": 2, "price": 7 } ] },
+    { "ref": "c3", "lines": [] }
+  ]
+}
