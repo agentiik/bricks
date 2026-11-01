@@ -1,0 +1,42 @@
+# Contributions come under the Developer Certificate of Origin 1.1, with a Signed-off-by line
+# and no contributor licence agreement (https://agentiik.github.io/docs/#licensing). This holds
+# every commit of a pull request from a fork to a sign-off by the commit's own author, the
+# address of the line matching the address of the commit, since the attestation is the
+# author's to make and nobody else's.
+#
+# A branch of this repository is exempt: only somebody who can already push here can open one,
+# and that is the maintainer, whose own work needs no certificate of origin to be licensed by
+# him. A contribution is what arrives from outside, which is a fork.
+name: dco
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  signed-off:
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: every commit signed off by its author
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          missing=0
+          for commit in $(git rev-list --no-merges "$BASE..$HEAD"); do
+            author=$(git log -1 --format='%ae' "$commit")
+            if ! git log -1 --format='%(trailers:key=Signed-off-by,valueonly)' "$commit" | grep -qiF "<$author>"; then
+              echo "::error::$(git log -1 --format='%h %s' "$commit") carries no Signed-off-by line for its author, $author. Sign it off with git commit -s, and see CONTRIBUTING.md for what the line certifies."
+              missing=1
+            fi
+          done
+          exit "$missing"

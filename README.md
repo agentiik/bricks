@@ -61,4 +61,4 @@ Apache-2.0, see [LICENSE](LICENSE). Anyone must be able to copy a brick from thi
 
 ## Contributing
 
-[CONTRIBUTING.md](https://github.com/agentiik/.github/blob/main/CONTRIBUTING.md), under the Developer Certificate of Origin 1.1.
+[CONTRIBUTING.md](https://github.com/agentiik/.github/blob/main/CONTRIBUTING.md), under the Developer Certificate of Origin 1.1. Every commit of a pull request from a fork carries a `Signed-off-by` line for its author, which `git commit -s` adds, and the `dco` workflow refuses one that does not.
