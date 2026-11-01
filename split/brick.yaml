@@ -1,0 +1,43 @@
+# One item into several, one per element of an array it carries. It is the catalog's brick written
+# as a plain shell script with no helper, which is what proves the contract needs no Agentiik
+# library: a file is read, a file is written, and the exit code says how it went.
+apiVersion: agentiik.dev/v1
+kind: Brick
+
+metadata:
+  name: split
+  version: 0.1.0
+  summary: Splits one item into several, one per element of an array field.
+
+spec:
+  inputs:
+    in:
+      schema: { type: object }
+
+  outputs:
+    out:
+      schema: { type: object }
+
+  params:
+    field:
+      type: string
+      required: true
+      description: >-
+        The field of each item's data holding the array to split. Each element becomes an item
+        whose data is the original's with this field replaced by the element, carrying the
+        original's attachments, and identified as the original's identity followed by #0, #1
+        and so on. An empty array publishes nothing for that item, and an item whose field is
+        absent or not an array is refused as invalid input.
+      examples:
+        - lines
+        - recipients
+
+  runtime:
+    network: none
+    streaming: false
+    user: "65532:65532"
+
+  resources:
+    cpu: "0.25"
+    memory: 64Mi
+    pids: 16
