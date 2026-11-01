@@ -1,6 +1,6 @@
 # bricks
 
-The standard catalog: one directory per brick, each producing its own image, its manifest at `/agk/brick.yaml` and its example envelopes. The images are published to `ghcr.io/agentiik/<name>` from v0.8.0, as described under Publishing; signing them and carrying the OCI annotations the brick contract requires is the rest of v0.8.0's work.
+The standard catalog: one directory per brick, each producing its own image, its manifest at `/agk/brick.yaml` and its example envelopes. The images are published to `ghcr.io/agentiik/<name>` from v0.8.0, signed and annotated, as described under Publishing and Verifying an image.
 
 A brick reads an envelope at `/agk/in/<port>/envelope.json`, writes one envelope per output port at `/agk/out/ports/<port>.json`, attaches artifacts under `/agk/out/files/`, and ends with an exit code the contract's table reads. That is the whole contract, and it is what makes a brick in any language, under any licence, as much a brick as the ones here. The contract is specified at <https://agentiik.github.io/docs#brick>.
 
@@ -57,6 +57,22 @@ The identities are compared rather than held aside, which `--ignore` above is sa
 ## Publishing
 
 `.github/workflows/publish.yml` builds every directory holding a `brick.yaml` from one matrix, each into one index for `linux/amd64` and `linux/arm64`, the architectures a step selects with `runs_on: [arch=...]`. A tag `vX.Y.Z` publishes every brick as `X.Y.Z` and `vX.Y.Z`, and `latest` where it is the highest release, whether the brick changed or not; a push to `main` publishes `dev`; any other branch goes through the same steps against a registry inside the job. A release refuses a manifest whose `metadata.version` is not the tag's, so the manifests are moved to the next version on `main` before tagging, like the changelog.
+
+## Verifying an image
+
+Every published image is signed keyless by `publish.yml`, carries an SPDX SBOM per platform as an OCI referrer and SLSA provenance from the SLSA framework's Build Level 3 generator, and its base images are pinned by digest. The identity a namespace's verification policy names:
+
+| | |
+| --- | --- |
+| Issuer | `https://token.actions.githubusercontent.com` |
+| Identity | `https://github.com/agentiik/bricks/.github/workflows/publish.yml@refs/tags/vX.Y.Z` for a release, `@refs/heads/main` for `dev` |
+
+    cosign verify ghcr.io/agentiik/jq:0.8.0 \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+      --certificate-identity-regexp '^https://github\.com/agentiik/bricks/\.github/workflows/publish\.yml@refs/tags/v'
+    oras discover --artifact-type application/spdx+json ghcr.io/agentiik/jq@<platform digest>
+
+The highest release and `main` are built again every Monday, and Dependabot proposes each base image republished upstream, so a fixed advisory reaches the catalog without waiting for a release; `org.opencontainers.image.created` says how old an image is.
 
 ## http-request cannot be run yet
 

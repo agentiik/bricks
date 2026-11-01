@@ -152,6 +152,30 @@ func TestEveryManifestNamesOneVersion(t *testing.T) {
 	}
 }
 
+var fromLine = regexp.MustCompile(`(?m)^FROM\s+(?:--platform=\S+\s+)?(\S+)`)
+
+// Every base image is pinned by digest, so that a brick's contents change only when its source
+// does: a tag is a pointer its publisher moves, and an image built on a moved tag is a different
+// brick under the same version. scratch is no image and has nothing to pin. Dependabot moves the
+// digests, each move a pull request somebody reads.
+func TestEveryBaseImageIsPinnedByDigest(t *testing.T) {
+	dockerfiles, err := filepath.Glob("*/Dockerfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range append(dockerfiles, "Dockerfile") {
+		doc, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range fromLine.FindAllSubmatch(doc, -1) {
+			if base := string(m[1]); base != "scratch" && !strings.Contains(base, "@sha256:") {
+				t.Errorf("%s builds from %s, a tag: pin it by digest", path, base)
+			}
+		}
+	}
+}
+
 var userLine = regexp.MustCompile(`(?m)^USER\s+(\S+)\s*$`)
 
 // The account a manifest declares is the account its image runs as. The engine checks the

@@ -6,37 +6,53 @@
 #     highest release, changed or not: the version names the release, and one version names one
 #     catalog (https://agentiik.github.io/docs/#versioning);
 #   - a push to main publishes every brick as dev;
-#   - a push to any other branch goes through every step, the push and the checks of what was
-#     pushed included, against a registry inside the job, so that a release is never the first
-#     time this workflow runs whole.
+#   - every Monday, and on demand, the highest release is built again from its tag onto its own
+#     tags, so that a base image fixed since reaches the catalog, and main again as dev: an image
+#     not rebuilt is stale, not stable (https://agentiik.github.io/docs/#supply-chain);
+#   - a push to any other branch goes through every step but signing and provenance, the push and
+#     the checks of what was pushed included, against a registry inside the job, so that a release
+#     is never the first time this workflow runs whole.
 #
 # A release refuses a manifest whose metadata.version is not the tag's: the version a brick says
 # of itself in /agk/brick.yaml, which brick.get and the catalog pages read, is the one its image is
 # published under, so the manifests are moved to the next release's version on main before it is
 # tagged, as the changelog is.
 #
-# Signing, the OCI annotations, the SBOM and the provenance are bricks#4, and land on this workflow.
+# What a published image carries, beside the image:
+#
+#   - the OCI annotations the brick contract requires, on the index and on each platform's
+#     manifest, org.opencontainers.image.created among them, which is how the catalog shows an
+#     image's age;
+#   - a keyless signature by this workflow, which a namespace's verification policy names by its
+#     identity, https://github.com/agentiik/bricks/.github/workflows/publish.yml@<ref>, issued by
+#     https://token.actions.githubusercontent.com;
+#   - an SPDX SBOM per platform, attached to that platform's manifest as an OCI referrer, so that
+#     "are we affected" is answered by reading an attestation rather than unpacking a filesystem;
+#   - SLSA provenance from the generator the SLSA framework publishes for Build Level 3, whose
+#     reusable workflow builds nothing and signs what this one built, out of reach of its steps.
 name: publish
 
 on:
   push:
     branches: ['**']
     tags: ['v*']
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: publish-${{ github.ref_name }}
-  cancel-in-progress: ${{ github.ref_type == 'branch' }}
+  group: publish-${{ github.event_name }}-${{ github.ref_name }}
+  cancel-in-progress: ${{ github.event_name == 'push' && github.ref_type == 'branch' }}
 
 jobs:
   plan:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      bricks: ${{ steps.plan.outputs.bricks }}
-      tags: ${{ steps.plan.outputs.tags }}
+      runs: ${{ steps.plan.outputs.runs }}
       publish: ${{ steps.plan.outputs.publish }}
       registry: ${{ steps.plan.outputs.registry }}
     defaults:
@@ -47,45 +63,74 @@ jobs:
         with:
           fetch-depth: 0
 
+      # A run is one checkout of the repository and the tags it is published under. A push is one;
+      # the schedule is two, the highest release from its tag and main as dev. The highest release
+      # is rebuilt only from v0.8.0, the first whose tree publishes itself.
       - name: plan
         id: plan
         env:
+          EVENT: ${{ github.event_name }}
           REF: ${{ github.ref }}
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          # One entry per brick: its name, and the Dockerfile that builds it, its own where it
-          # carries one and the shared one otherwise.
-          bricks=$(for m in */brick.yaml; do
-            b=${m%/brick.yaml}
-            if [ -f "$b/Dockerfile" ]; then f=$b/Dockerfile; else f=Dockerfile; fi
-            jq -cn --arg name "$b" --arg dockerfile "$f" '{name: $name, dockerfile: $dockerfile}'
-          done | jq -cs .)
-          versions=$(grep -h -m1 '^  version:' */brick.yaml | awk '{print $2}' | sort -u)
-          if [ "$(echo "$versions" | wc -l)" != 1 ]; then
-            echo "the manifests carry more than one version, and one version names the catalog:"; grep -H -m1 '^  version:' */brick.yaml; exit 1
-          fi
-          case "$REF_TYPE/$REF" in
-            tag/*)
+          release_tags() {
+            local tag=$1 highest
+            highest=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+            if [ "$tag" = "$highest" ]; then echo "${tag#v} $tag latest"; else echo "${tag#v} $tag"; fi
+          }
+          # Every brick of a checkout, and the version its manifests name, refused where they name
+          # more than one.
+          bricks_at() {
+            local ref=$1 versions
+            versions=$(git grep -h -m1 '^  version:' "$ref" -- '*/brick.yaml' | awk '{print $2}' | sort -u)
+            if [ "$(echo "$versions" | wc -l)" != 1 ]; then
+              echo "the manifests at $ref carry more than one version, and one version names the catalog" >&2; exit 1
+            fi
+            echo "$versions"
+          }
+          runs='[]'
+          add() { runs=$(jq -c --arg ref "$1" --arg tags "$2" '. + [{ref: $ref, tags: $tags}]' <<<"$runs"); }
+          case "$EVENT/$REF_TYPE/$REF" in
+            push/tag/*)
               if ! [[ "$REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
                 echo "$REF_NAME is not a release tag vMAJOR.MINOR.PATCH"; exit 1
               fi
-              if [ "$versions" != "${REF_NAME#v}" ]; then
-                echo "the manifests say $versions and the tag is $REF_NAME: move metadata.version to ${REF_NAME#v} before tagging"; exit 1
+              version=$(bricks_at "$REF")
+              if [ "$version" != "${REF_NAME#v}" ]; then
+                echo "the manifests say $version and the tag is $REF_NAME: move metadata.version to ${REF_NAME#v} before tagging"; exit 1
               fi
-              tags="${REF_NAME#v} $REF_NAME"
+              add "$REF" "$(release_tags "$REF_NAME")"; publish=true ;;
+            push/branch/refs/heads/main) bricks_at "$GITHUB_SHA" >/dev/null; add "$GITHUB_SHA" dev; publish=true ;;
+            push/branch/*) bricks_at "$GITHUB_SHA" >/dev/null; add "$GITHUB_SHA" dev; publish=false ;;
+            schedule/*|workflow_dispatch/*)
               highest=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
-              if [ "$REF_NAME" = "$highest" ]; then tags="$tags latest"; fi
-              publish=true ;;
-            branch/refs/heads/main) tags=dev publish=true ;;
-            *) tags=dev publish=false ;;
+              if [ -n "$highest" ] && [ "$(printf '%s\nv0.8.0\n' "$highest" | sort -V | head -n 1)" = v0.8.0 ]; then
+                add "refs/tags/$highest" "$(release_tags "$highest")"
+              else
+                echo "no release from v0.8.0 yet, so only main is rebuilt"
+              fi
+              add "$(git rev-parse origin/main)" dev; publish=true ;;
+            *) echo "publish does not run on $EVENT"; exit 1 ;;
           esac
           if [ "$publish" = true ]; then registry=ghcr.io/agentiik; else registry=localhost:5000/agentiik; fi
-          echo "$(echo "$bricks" | jq -r 'map(.name) | join(" ")') at $versions, tags $tags, to $registry"
+          # The matrix is every brick at every ref, read from that ref's own tree.
+          matrix='[]'
+          for row in $(jq -c '.[]' <<<"$runs"); do
+            ref=$(jq -r .ref <<<"$row"); tags=$(jq -r .tags <<<"$row")
+            version=$(bricks_at "$ref")
+            for m in $(git ls-tree -d --name-only "$ref" | while read -r d; do git cat-file -e "$ref:$d/brick.yaml" 2>/dev/null && echo "$d"; done); do
+              if git cat-file -e "$ref:$m/Dockerfile" 2>/dev/null; then f=$m/Dockerfile; else f=Dockerfile; fi
+              summary=$(git show "$ref:$m/brick.yaml" | sed -n 's/^  summary: //p' | head -n 1)
+              matrix=$(jq -c --arg name "$m" --arg dockerfile "$f" --arg ref "$ref" --arg tags "$tags" --arg version "$version" --arg summary "$summary" \
+                '. + [{name: $name, dockerfile: $dockerfile, ref: $ref, tags: $tags, version: $version, summary: $summary}]' <<<"$matrix")
+            done
+          done
+          jq -r '.[] | "\(.name) at \(.ref), \(.version), tags \(.tags)"' <<<"$matrix"
+          echo "to $registry"
           {
-            echo "bricks=$bricks"
-            echo "tags=$tags"
+            echo "runs=$matrix"
             echo "publish=$publish"
             echo "registry=$registry"
           } >> "$GITHUB_OUTPUT"
@@ -93,19 +138,23 @@ jobs:
   brick:
     needs: plan
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
+      # The keyless signature: the workflow's OIDC token is what the certificate is issued for.
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
-        brick: ${{ fromJSON(needs.plan.outputs.bricks) }}
+        brick: ${{ fromJSON(needs.plan.outputs.runs) }}
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.brick.ref }}
 
       # The registry a branch pushes to, so that nothing leaves the job.
       - name: registry
@@ -127,56 +176,170 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - uses: sigstore/cosign-installer@v3
+      - uses: anchore/sbom-action/download-syft@v0
+      - uses: oras-project/setup-oras@v1
+
       - name: build and push
+        id: build
         env:
           NAME: ${{ matrix.brick.name }}
           DOCKERFILE: ${{ matrix.brick.dockerfile }}
           REGISTRY: ${{ needs.plan.outputs.registry }}
-          TAGS: ${{ needs.plan.outputs.tags }}
+          TAGS: ${{ matrix.brick.tags }}
+          VERSION: ${{ matrix.brick.version }}
+          SUMMARY: ${{ matrix.brick.summary }}
         run: |
           set -euo pipefail
           args=()
           for t in $TAGS; do args+=(-t "$REGISTRY/$NAME:$t"); done
-          # No provenance attestation here: it would add an unknown/unknown entry beside the two
-          # platforms, and the attestations the catalog publishes are bricks#4's.
+          # The annotations the brick contract requires, on the index, which is what ghcr.io and a
+          # registry's catalog read, and on each platform's manifest, which is what a pull by
+          # platform reads; and the same as labels of each image's configuration.
+          created=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          for pair in "title=$NAME" "description=$SUMMARY" "version=$VERSION" \
+            "source=https://github.com/agentiik/bricks" "revision=$(git rev-parse HEAD)" "licenses=Apache-2.0" "created=$created"; do
+            args+=(--annotation "index,manifest:org.opencontainers.image.$pair" --label "org.opencontainers.image.$pair")
+          done
+          # No provenance attestation from buildx: it would add an unknown/unknown entry beside the
+          # two platforms, and the provenance the catalog publishes is the SLSA generator's.
           docker buildx build --platform linux/amd64,linux/arm64 -f "$DOCKERFILE" --build-arg "BRICK=$NAME" \
             --provenance=false --metadata-file "$RUNNER_TEMP/metadata.json" \
             "${args[@]}" --push .
+          digest=$(jq -r '."containerimage.digest"' "$RUNNER_TEMP/metadata.json")
+          case "$digest" in sha256:*) ;; *) echo "the build reported no digest"; exit 1 ;; esac
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
       # What was pushed, read back from the registry: one index holding both platforms and nothing
-      # else, every tag on that index, and on each platform the manifest this directory holds and
-      # an account that is not root.
+      # else, every tag on that index, the annotations, and on each platform the manifest this
+      # directory holds and an account that is not root.
       - name: check
         env:
           NAME: ${{ matrix.brick.name }}
           REGISTRY: ${{ needs.plan.outputs.registry }}
-          TAGS: ${{ needs.plan.outputs.tags }}
+          TAGS: ${{ matrix.brick.tags }}
+          VERSION: ${{ matrix.brick.version }}
+          DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           set -euo pipefail
-          digest=$(jq -r '."containerimage.digest"' "$RUNNER_TEMP/metadata.json")
-          case "$digest" in sha256:*) ;; *) echo "the build reported no digest"; exit 1 ;; esac
-          ref=$REGISTRY/$NAME@$digest
+          ref=$REGISTRY/$NAME@$DIGEST
           echo "$ref"
-
-          platforms=$(docker buildx imagetools inspect --raw "$ref" | jq -r '[.manifests[].platform | "\(.os)/\(.architecture)"] | sort | join(" ")')
+          raw=$(docker buildx imagetools inspect --raw "$ref")
+          platforms=$(jq -r '[.manifests[].platform | "\(.os)/\(.architecture)"] | sort | join(" ")' <<<"$raw")
           test "$platforms" = "linux/amd64 linux/arm64" || { echo "$ref holds $platforms"; exit 1; }
+          for key in title description version source revision licenses created; do
+            test -n "$(jq -r --arg k "org.opencontainers.image.$key" '.annotations[$k] // empty' <<<"$raw")" \
+              || { echo "the index carries no org.opencontainers.image.$key"; exit 1; }
+          done
+          test "$(jq -r '.annotations["org.opencontainers.image.version"]' <<<"$raw")" = "$VERSION"
 
           for t in $TAGS; do
             got=$(docker buildx imagetools inspect --raw "$REGISTRY/$NAME:$t" | sha256sum | cut -d' ' -f1)
-            test "sha256:$got" = "$digest" || { echo "$NAME:$t is sha256:$got, not $digest"; exit 1; }
-            echo "$NAME:$t -> $digest"
+            test "sha256:$got" = "$DIGEST" || { echo "$NAME:$t is sha256:$got, not $DIGEST"; exit 1; }
+            echo "$NAME:$t -> $DIGEST"
           done
 
           for platform in linux/amd64 linux/arm64; do
             config=$(docker buildx imagetools inspect "$ref" --format "{{json (index .Image \"$platform\")}}")
-            arch=$(echo "$config" | jq -r .architecture)
+            arch=$(jq -r .architecture <<<"$config")
             test "linux/$arch" = "$platform" || { echo "$platform holds an image for $arch"; exit 1; }
-            user=$(echo "$config" | jq -r .config.User)
+            user=$(jq -r .config.User <<<"$config")
             case "$user" in ''|root|0|0:*) echo "$platform runs as '$user'"; exit 1 ;; esac
-            docker pull -q --platform "$platform" "$ref" >/dev/null
             container=$(docker create --platform "$platform" "$ref")
             docker cp "$container:/agk/brick.yaml" "$RUNNER_TEMP/brick.yaml"
             docker rm "$container" >/dev/null
             cmp "$RUNNER_TEMP/brick.yaml" "$NAME/brick.yaml" || { echo "$platform carries another manifest than $NAME/brick.yaml"; exit 1; }
             echo "$platform: $arch, user $user, manifest $NAME/brick.yaml"
           done
+
+      # An SPDX SBOM of each platform's image, attached to that platform's manifest as an OCI
+      # referrer and read back. syft reads the image from the registry, so it describes what was
+      # pushed rather than what the build thought it was making.
+      - name: sbom
+        env:
+          NAME: ${{ matrix.brick.name }}
+          REGISTRY: ${{ needs.plan.outputs.registry }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          PUBLISH: ${{ needs.plan.outputs.publish }}
+        run: |
+          set -euo pipefail
+          plain=(); [ "$PUBLISH" = true ] || { plain=(--plain-http); export SYFT_REGISTRY_INSECURE_USE_HTTP=true; }
+          raw=$(docker buildx imagetools inspect --raw "$REGISTRY/$NAME@$DIGEST")
+          for row in $(jq -c '.manifests[] | {digest, arch: .platform.architecture}' <<<"$raw"); do
+            d=$(jq -r .digest <<<"$row"); arch=$(jq -r .arch <<<"$row")
+            sbom=$RUNNER_TEMP/sbom-$arch.spdx.json
+            syft scan "registry:$REGISTRY/$NAME@$d" --platform "linux/$arch" -o "spdx-json=$sbom" -q
+            (cd "$RUNNER_TEMP" && oras attach "${plain[@]}" --artifact-type application/spdx+json \
+              "$REGISTRY/$NAME@$d" "$(basename "$sbom"):application/spdx+json")
+            found=$(oras discover "${plain[@]}" --format json --artifact-type application/spdx+json "$REGISTRY/$NAME@$d" | jq '[.referrers // .manifests // [] | .[]] | length')
+            test "$found" -ge 1 || { echo "linux/$arch has no SBOM referrer"; exit 1; }
+            echo "linux/$arch: SBOM attached, $(jq '.packages | length' "$sbom") packages"
+          done
+
+      # Signed only when published: a keyless signature is recorded in the public transparency
+      # log, and a branch's image in a registry inside the job is nothing anybody will verify.
+      - name: sign
+        if: needs.plan.outputs.publish == 'true'
+        env:
+          NAME: ${{ matrix.brick.name }}
+          REGISTRY: ${{ needs.plan.outputs.registry }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          cosign sign --yes "$REGISTRY/$NAME@$DIGEST"
+          cosign verify "$REGISTRY/$NAME@$DIGEST" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp '^https://github\.com/agentiik/bricks/\.github/workflows/publish\.yml@refs/(heads/main|tags/v.+)$' >/dev/null
+          echo "signed $REGISTRY/$NAME@$DIGEST"
+
+      - name: record the digest
+        if: needs.plan.outputs.publish == 'true'
+        env:
+          NAME: ${{ matrix.brick.name }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          jq -n --arg image "ghcr.io/agentiik/$NAME" --arg digest "$DIGEST" '{image: $image, digest: $digest}' > "$RUNNER_TEMP/digest.json"
+
+      - uses: actions/upload-artifact@v4
+        if: needs.plan.outputs.publish == 'true'
+        with:
+          name: digest-${{ matrix.brick.name }}-${{ strategy.job-index }}
+          path: ${{ runner.temp }}/digest.json
+
+  # The published digests, gathered into the matrix the provenance generator is called with.
+  digests:
+    needs: [plan, brick]
+    if: needs.plan.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.gather.outputs.images }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digest-*
+          path: digests
+      - id: gather
+        run: echo "images=$(jq -cs . digests/*/digest.json)" >> "$GITHUB_OUTPUT"
+
+  # SLSA provenance for every published image, by the generator's reusable workflow: it runs in a
+  # job of its own that the build steps above cannot reach, and signs the provenance with its own
+  # identity, which is what Build Level 3 asks of where the provenance comes from. It is called
+  # by tag, as the generator requires, since it verifies its own reference.
+  provenance:
+    needs: [plan, digests]
+    if: needs.plan.outputs.publish == 'true'
+    permissions:
+      actions: read
+      id-token: write
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.digests.outputs.images) }}
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: ${{ matrix.image.image }}
+      digest: ${{ matrix.image.digest }}
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
