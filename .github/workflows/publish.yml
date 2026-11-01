@@ -1,0 +1,182 @@
+# The catalog published from one matrix: every directory holding a brick.yaml is one entry, built
+# for linux/amd64 and linux/arm64 into one multi-platform index at ghcr.io/agentiik/<name>, so that
+# a step whose runs_on selects either architecture pulls the same name and gets its own platform.
+#
+#   - a tag vX.Y.Z publishes every brick as X.Y.Z and vX.Y.Z, and latest where the tag is the
+#     highest release, changed or not: the version names the release, and one version names one
+#     catalog (https://agentiik.github.io/docs/#versioning);
+#   - a push to main publishes every brick as dev;
+#   - a push to any other branch goes through every step, the push and the checks of what was
+#     pushed included, against a registry inside the job, so that a release is never the first
+#     time this workflow runs whole.
+#
+# A release refuses a manifest whose metadata.version is not the tag's: the version a brick says
+# of itself in /agk/brick.yaml, which brick.get and the catalog pages read, is the one its image is
+# published under, so the manifests are moved to the next release's version on main before it is
+# tagged, as the changelog is.
+#
+# Signing, the OCI annotations, the SBOM and the provenance are bricks#4, and land on this workflow.
+name: publish
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-${{ github.ref_name }}
+  cancel-in-progress: ${{ github.ref_type == 'branch' }}
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      bricks: ${{ steps.plan.outputs.bricks }}
+      tags: ${{ steps.plan.outputs.tags }}
+      publish: ${{ steps.plan.outputs.publish }}
+      registry: ${{ steps.plan.outputs.registry }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: plan
+        id: plan
+        env:
+          REF: ${{ github.ref }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # One entry per brick: its name, and the Dockerfile that builds it, its own where it
+          # carries one and the shared one otherwise.
+          bricks=$(for m in */brick.yaml; do
+            b=${m%/brick.yaml}
+            if [ -f "$b/Dockerfile" ]; then f=$b/Dockerfile; else f=Dockerfile; fi
+            jq -cn --arg name "$b" --arg dockerfile "$f" '{name: $name, dockerfile: $dockerfile}'
+          done | jq -cs .)
+          versions=$(grep -h -m1 '^  version:' */brick.yaml | awk '{print $2}' | sort -u)
+          if [ "$(echo "$versions" | wc -l)" != 1 ]; then
+            echo "the manifests carry more than one version, and one version names the catalog:"; grep -H -m1 '^  version:' */brick.yaml; exit 1
+          fi
+          case "$REF_TYPE/$REF" in
+            tag/*)
+              if ! [[ "$REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+                echo "$REF_NAME is not a release tag vMAJOR.MINOR.PATCH"; exit 1
+              fi
+              if [ "$versions" != "${REF_NAME#v}" ]; then
+                echo "the manifests say $versions and the tag is $REF_NAME: move metadata.version to ${REF_NAME#v} before tagging"; exit 1
+              fi
+              tags="${REF_NAME#v} $REF_NAME"
+              highest=$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+              if [ "$REF_NAME" = "$highest" ]; then tags="$tags latest"; fi
+              publish=true ;;
+            branch/refs/heads/main) tags=dev publish=true ;;
+            *) tags=dev publish=false ;;
+          esac
+          if [ "$publish" = true ]; then registry=ghcr.io/agentiik; else registry=localhost:5000/agentiik; fi
+          echo "$(echo "$bricks" | jq -r 'map(.name) | join(" ")') at $versions, tags $tags, to $registry"
+          {
+            echo "bricks=$bricks"
+            echo "tags=$tags"
+            echo "publish=$publish"
+            echo "registry=$registry"
+          } >> "$GITHUB_OUTPUT"
+
+  brick:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        brick: ${{ fromJSON(needs.plan.outputs.bricks) }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      # The registry a branch pushes to, so that nothing leaves the job.
+      - name: registry
+        if: needs.plan.outputs.publish != 'true'
+        run: docker run -d --name registry -p 5000:5000 registry:2
+
+      # QEMU for the RUN steps of an image built on Alpine, split's apk add; the Go bricks cross
+      # compile and run nothing under emulation.
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
+
+      - uses: docker/login-action@v3
+        if: needs.plan.outputs.publish == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: build and push
+        env:
+          NAME: ${{ matrix.brick.name }}
+          DOCKERFILE: ${{ matrix.brick.dockerfile }}
+          REGISTRY: ${{ needs.plan.outputs.registry }}
+          TAGS: ${{ needs.plan.outputs.tags }}
+        run: |
+          set -euo pipefail
+          args=()
+          for t in $TAGS; do args+=(-t "$REGISTRY/$NAME:$t"); done
+          # No provenance attestation here: it would add an unknown/unknown entry beside the two
+          # platforms, and the attestations the catalog publishes are bricks#4's.
+          docker buildx build --platform linux/amd64,linux/arm64 -f "$DOCKERFILE" --build-arg "BRICK=$NAME" \
+            --provenance=false --metadata-file "$RUNNER_TEMP/metadata.json" \
+            "${args[@]}" --push .
+
+      # What was pushed, read back from the registry: one index holding both platforms and nothing
+      # else, every tag on that index, and on each platform the manifest this directory holds and
+      # an account that is not root.
+      - name: check
+        env:
+          NAME: ${{ matrix.brick.name }}
+          REGISTRY: ${{ needs.plan.outputs.registry }}
+          TAGS: ${{ needs.plan.outputs.tags }}
+        run: |
+          set -euo pipefail
+          digest=$(jq -r '."containerimage.digest"' "$RUNNER_TEMP/metadata.json")
+          case "$digest" in sha256:*) ;; *) echo "the build reported no digest"; exit 1 ;; esac
+          ref=$REGISTRY/$NAME@$digest
+          echo "$ref"
+
+          platforms=$(docker buildx imagetools inspect --raw "$ref" | jq -r '[.manifests[].platform | "\(.os)/\(.architecture)"] | sort | join(" ")')
+          test "$platforms" = "linux/amd64 linux/arm64" || { echo "$ref holds $platforms"; exit 1; }
+
+          for t in $TAGS; do
+            got=$(docker buildx imagetools inspect --raw "$REGISTRY/$NAME:$t" | sha256sum | cut -d' ' -f1)
+            test "sha256:$got" = "$digest" || { echo "$NAME:$t is sha256:$got, not $digest"; exit 1; }
+            echo "$NAME:$t -> $digest"
+          done
+
+          for platform in linux/amd64 linux/arm64; do
+            config=$(docker buildx imagetools inspect "$ref" --format "{{json (index .Image \"$platform\")}}")
+            arch=$(echo "$config" | jq -r .architecture)
+            test "linux/$arch" = "$platform" || { echo "$platform holds an image for $arch"; exit 1; }
+            user=$(echo "$config" | jq -r .config.User)
+            case "$user" in ''|root|0|0:*) echo "$platform runs as '$user'"; exit 1 ;; esac
+            docker pull -q --platform "$platform" "$ref" >/dev/null
+            container=$(docker create --platform "$platform" "$ref")
+            docker cp "$container:/agk/brick.yaml" "$RUNNER_TEMP/brick.yaml"
+            docker rm "$container" >/dev/null
+            cmp "$RUNNER_TEMP/brick.yaml" "$NAME/brick.yaml" || { echo "$platform carries another manifest than $NAME/brick.yaml"; exit 1; }
+            echo "$platform: $arch, user $user, manifest $NAME/brick.yaml"
+          done
