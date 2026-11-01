@@ -6,7 +6,7 @@ kind: Brick
 
 metadata:
   name: split
-  version: 0.1.0
+  version: 0.8.0
   summary: Splits one item into several, one per element of an array field.
 
 spec:
