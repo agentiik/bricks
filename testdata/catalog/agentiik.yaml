@@ -29,6 +29,8 @@ outputs:
     from: { step: table, port: out }
   rows:
     from: { step: rows, port: out }
+  orders:
+    from: { step: summary, port: out }
 
 steps:
 
@@ -86,4 +88,22 @@ steps:
       - { step: table, port: out, as: in }
     params:
       direction: to_items
+    outputs: [out]
+
+  orders:
+    image: ghcr.io/agentiik/aggregate:ci
+    needs:
+      - { step: flatten, port: out, as: in }
+    params:
+      key: ref
+      collect: lines
+    outputs: [out]
+
+  summary:
+    image: ghcr.io/agentiik/template:ci
+    needs:
+      - { step: orders, port: out, as: in }
+    params:
+      template: "{{.ref}}: {{.count}} lines"
+      field: summary
     outputs: [out]
