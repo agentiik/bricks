@@ -58,6 +58,8 @@ func main() {
 	if err != nil {
 		envelope.Die(envelope.Invalid, "%s", err)
 	}
+	// The step's threshold holds for every value published, headers as much as the body.
+	task.Limits.InlineMax = s.InlineMax
 
 	batch, err := task.In(in)
 	if err != nil {
