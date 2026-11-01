@@ -1,0 +1,1 @@
+{"meta": {"run_id": "01M2AAZ9G62NQXFAFCXKRPJEH5", "step": "an-empty-array-publishes-nothing-for-its-item", "port": "out", "attempt": 1, "count": 1, "produced_at": "1970-01-01T00:00:00Z"}, "items": [{"id": "notice-2#0", "data": {"recipients": "ops@example.com"}, "files": []}]}

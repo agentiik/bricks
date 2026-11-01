@@ -12,13 +12,14 @@ A brick reads an envelope at `/agk/in/<port>/envelope.json`, writes one envelope
 | [`schema-validate`](schema-validate) | Holds every item to a JSON Schema and routes the ones that do not meet it to a port of their own. |
 | [`csv`](csv) | Converts a table into one item per row, and a batch of items into a table. |
 | [`http-request`](http-request) | Issues one HTTP request per item and publishes the response. |
+| [`split`](split) | Splits one item into several, one per element of an array field. A shell script and jq, with no helper. |
 
-The rest of the catalog the documentation names, `sql-query`, `s3`, `smtp-send`, `imap-fetch`, `template`, `split`, `aggregate`, `wait` and `exec`, is v0.8.0 work. These four are v0.1.0 because they are what a workflow needs to do anything at all.
+The rest of the catalog the documentation names, `sql-query`, `s3`, `smtp-send`, `imap-fetch`, `template`, `aggregate`, `wait` and `exec`, is v0.8.0 work. The first four are v0.1.0 because they are what a workflow needs to do anything at all.
 
 ## A brick is a directory
 
     <name>/brick.yaml       the manifest, copied to /agk/brick.yaml in the image
-    <name>/main.go          the brick
+    <name>/main.go          the brick, or a script its own Dockerfile copies in
     <name>/cases/<case>/    one directory per example, read by agk brick test
     <name>/Dockerfile       only where the image needs more than its binary
 
@@ -51,7 +52,7 @@ Its manifest declares `network: egress`, and the driver refuses that posture unt
 
 ## No Agentiik library
 
-`internal/envelope` exists because four bricks in one repository would otherwise carry four copies of the same thirty lines. It is not a dependency any brick needs: the contract is files, and a shell script that reads one and writes another is as much a brick as anything here. Nothing in this module imports the engine, so an operator upgrading one is never told to upgrade the other.
+`internal/envelope` exists because the Go bricks in one repository would otherwise carry copies of the same thirty lines. It is not a dependency any brick needs: the contract is files, and a shell script that reads one and writes another is as much a brick as anything here. [`split`](split) is one, `sh` and `jq` on Alpine, tested by the same cases job as the rest; it keeps to the size rules by measuring its envelope itself, and spills nothing because every element it publishes travelled inline already. Nothing in this module imports the engine, so an operator upgrading one is never told to upgrade the other.
 
 Two dependencies, each with its reason in `go.mod`: a pure Go jq, so that the image can be a static binary on scratch, and the JSON Schema implementation the engine validates workflow inputs with, so that a brick cannot accept what the engine refuses.
 

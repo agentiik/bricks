@@ -67,6 +67,7 @@ jobs:
             docker build --build-arg "BRICK=$brick" -t "ghcr.io/agentiik/$brick:ci" .
           done
           docker build -f http-request/Dockerfile -t ghcr.io/agentiik/http-request:ci .
+          docker build -f split/Dockerfile -t ghcr.io/agentiik/split:ci .
 
       # The identities are compared, not held aside. Every brick here derives an item's identity
       # from the payload it came from, which is what makes two runs over one batch comparable at
@@ -74,7 +75,7 @@ jobs:
       - name: run the cases
         run: |
           set -eu
-          for brick in jq schema-validate csv; do
+          for brick in jq schema-validate csv split; do
             echo "::group::$brick"
             (cd "$brick" && agk brick test --image "ghcr.io/agentiik/$brick:ci" \
               --ignore meta.run_id,meta.produced_at,files.uri)
