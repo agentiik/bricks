@@ -52,9 +52,10 @@ spec:
       minimum: 0
       default: 262144
       description: >-
-        to_table only. The size above which the table travels as an artifact rather than in the
-        envelope. The default is the documented inline_max_bytes, and a step on an installation
-        that tuned the setting passes its own.
+        The size above which a value travels as an artifact rather than in the envelope: the
+        table in to_table, and any cell in to_items, which is written to a JSON artifact of its
+        own. The default is the documented inline_max_bytes, and a step on an installation that
+        tuned the setting passes its own.
 
   runtime:
     network: none

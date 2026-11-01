@@ -36,6 +36,12 @@ A port the manifest declares and a case writes no expectation for is expected to
 
 `catalog_test.go` holds every directory to this layout before any image is built. Each directory but `internal` is a brick named as its manifest names it; the manifest validates against the brick schema of [`agentiik/schemas`](https://github.com/agentiik/schemas), which refuses a root account; the image runs as the account the manifest declares; and every port the manifest declares has a case that feeds it or expects it. It reads the schema from `BRICK_SCHEMA`, or from a checkout of `agentiik/schemas` beside this one, and skips without either; CI always sets it.
 
+## Exit codes and size rules
+
+A brick leaves through `envelope.Die` and a named band: `Failed` (1) for an application failure, `Transient` (100) for a far side that may answer next time, `Invalid` (120) for input it will refuse on every attempt. `Die` turns any other code into 1, since 121 and above are the runner's and the runtime's. `exits_test.go` holds every brick to that and to a case leaving with 120; no brick of the catalog has a transient failure yet, and `http-request` answers a failed request on its `error` port rather than by its exit code.
+
+`envelope.Out` holds every envelope to the size rules before writing it, so that a brick never leaves what the runner would refuse with 121. A value of `data` above `inline_max_bytes` is written to `/agk/out/files/<item>-<field>.json` and referenced in `files[]`, the name and the bytes the engine itself spills by; an envelope still above `envelope_max_bytes`, or holding more than `max_items`, fails the step as an application failure naming the rule, and the step splits its batch upstream. The limits are the documented defaults, since the contract gives a brick no way to read its installation's, and `csv` and `http-request` take `inline_max_bytes` as a parameter.
+
 ## Building and testing one
 
     docker build --build-arg BRICK=jq -t ghcr.io/agentiik/jq:0.1.0 .

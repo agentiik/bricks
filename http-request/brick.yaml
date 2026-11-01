@@ -47,7 +47,8 @@ spec:
       default: 262144
       description: >-
         The size above which a response body is attached as an artifact rather than carried in
-        the envelope. The default is the documented inline_max_bytes.
+        the envelope, and above which any other value published is written to a JSON artifact of
+        its own. The default is the documented inline_max_bytes.
 
   secrets:
     - name: bearer
