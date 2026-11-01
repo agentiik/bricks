@@ -1,0 +1,99 @@
+# Rows into items and items into statements, against the three databases a workflow meets most.
+# The connection string is a secret and never a parameter, since a parameter is printed in a run's
+# detail and a connection string carries a password.
+apiVersion: agentiik.dev/v1
+kind: Brick
+
+metadata:
+  name: sql-query
+  version: 0.8.0
+  summary: Runs one SQL statement against PostgreSQL, MySQL or SQLite and publishes each row as an item.
+
+spec:
+  inputs:
+    in:
+      schema:
+        type: object
+        description: >-
+          Optional. Each item runs the statement once, its fields named by args bound to the
+          placeholders in order. With nothing wired to in, the statement runs once with nothing
+          bound, as the first step of a workflow reading a table does; an empty batch runs it for
+          none and connects to nothing.
+        examples:
+          - { customer: acme, floor: 1000 }
+
+  outputs:
+    out:
+      schema:
+        type: object
+        description: >-
+          One item per row, one member per column. An integer or a floating-point column is a
+          number, a DECIMAL or NUMERIC the string the database wrote, since a JSON number is a
+          double and money read as one is money with an error in it, a JSON column its value, a
+          time RFC 3339 in UTC, binary base64, and NULL null. A row is identified by its id_column
+          where the step names one, and otherwise by its position: the item's identity followed
+          by #0, #1 and so on, or the bare position where nothing is wired to in. A statement
+          returning no rows, an INSERT without RETURNING among them, publishes nothing.
+        examples:
+          - { ref: a1, customer: acme, cents: 1200, price: "12.00", created_at: "2026-10-01T04:03:13Z" }
+
+  params:
+    query:
+      type: string
+      required: true
+      minLength: 1
+      description: >-
+        The statement, with the placeholders of its database: $1, $2 for PostgreSQL, ? for MySQL
+        and SQLite. Every statement of a step runs in one transaction, committed once every item
+        has run, so a batch that fails halfway leaves the database as it found it and a retry of
+        the step writes nothing twice.
+      examples:
+        - "SELECT ref, customer, cents FROM orders WHERE settled_at IS NULL ORDER BY ref"
+        - "SELECT ref, cents FROM orders WHERE customer = $1 AND cents > $2"
+        - "INSERT INTO charges (ref, cents) VALUES (?, ?)"
+    args:
+      type: array
+      items: { type: string, minLength: 1 }
+      default: []
+      description: >-
+        The fields of each item's data bound to the placeholders, in order. A string, a number or
+        a boolean is bound as itself, a whole number as an integer, and an object or an array as
+        its JSON, which is what a json or jsonb column takes. An item lacking one is refused as
+        invalid input.
+      examples:
+        - [customer, floor]
+        - [ref, cents]
+    id_column:
+      type: string
+      minLength: 1
+      description: >-
+        The column whose value identifies a row, so that a row keeps its identity across runs
+        whatever order the database returns it in. A row whose value is NULL is refused.
+      examples: [ref, id]
+    inline_max_bytes:
+      type: integer
+      minimum: 0
+      default: 262144
+      description: >-
+        The size above which a value of a row travels as an artifact rather than in the envelope,
+        written to a JSON artifact of its own. The default is the documented inline_max_bytes.
+      examples: [262144, 65536]
+
+  secrets:
+    # Required: there is no database to reach without it. Its value is a URL, postgres://,
+    # mysql:// or sqlite:// followed by the database.
+    - name: dsn
+      mount: /agk/secrets/dsn
+
+  runtime:
+    # PostgreSQL and MySQL are reached over the network, so the brick says so. The driver refuses
+    # this mode until the runner has the proxy that enforces a step's egress.allow list, which is
+    # why this brick cannot yet be run in a container, SQLite included.
+    network: egress
+    streaming: false
+    user: "65532:65532"
+
+  resources:
+    cpu: "0.5"
+    memory: 256Mi
+    pids: 64
