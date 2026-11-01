@@ -243,6 +243,11 @@ func server(t *testing.T, env string) (*sql.DB, source) {
 	t.Helper()
 	dsn := os.Getenv(env)
 	if dsn == "" {
+		// CI sets both, so a missing one there is a broken job rather than a laptop, and a
+		// skip would let the two servers go untested while the job stayed green.
+		if os.Getenv("CI") != "" {
+			t.Fatalf("%s names no database, and CI runs both servers", env)
+		}
 		t.Skipf("%s names no database", env)
 	}
 	src, err := parse(dsn)
