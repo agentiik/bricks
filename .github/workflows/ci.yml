@@ -22,6 +22,24 @@ permissions:
 jobs:
   module:
     runs-on: ubuntu-latest
+    # The two servers sql-query is held against beside SQLite, which its tests open in their own
+    # process. A test that names no server skips, which is right on a laptop; here both are set.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 5s --health-retries 30
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci
+          MYSQL_DATABASE: ci
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -pci" --health-interval 2s --health-timeout 5s --health-retries 60
     steps:
       - uses: actions/checkout@v4
 
@@ -47,6 +65,8 @@ jobs:
         run: go test ./... -race
         env:
           BRICK_SCHEMA: ${{ github.workspace }}/.schemas/brick.schema.json
+          SQL_QUERY_POSTGRES: postgres://postgres:ci@localhost:5432/postgres?sslmode=disable
+          SQL_QUERY_MYSQL: mysql://root:ci@localhost:3306/ci
       - name: gofmt
         run: |
           unformatted=$(gofmt -l .)
@@ -81,6 +101,7 @@ jobs:
             docker build --build-arg "BRICK=$brick" -t "ghcr.io/agentiik/$brick:ci" .
           done
           docker build -f http-request/Dockerfile -t ghcr.io/agentiik/http-request:ci .
+          docker build -f sql-query/Dockerfile -t ghcr.io/agentiik/sql-query:ci .
           docker build -f split/Dockerfile -t ghcr.io/agentiik/split:ci .
 
       # The identities are compared, not held aside. Every brick here derives an item's identity
@@ -115,15 +136,18 @@ jobs:
             exit 1
           fi
 
-      # http-request declares network: egress, and the driver refuses that posture until the
-      # runner has the proxy that enforces a step's egress.allow list: opening the network and
-      # calling it filtered is the one thing it will not do. So its cases are written and cannot
-      # run, and this says so out loud rather than leaving a brick quietly untested. The request
-      # itself is covered by the module job, against a server in the test's own process.
+      # http-request and sql-query declare network: egress, and the driver refuses that posture
+      # until the runner has the proxy that enforces a step's egress.allow list: opening the
+      # network and calling it filtered is the one thing it will not do. So their cases are
+      # written and cannot run, and this says so out loud rather than leaving a brick quietly
+      # untested. What each does is covered by the module job, against a server in the test's own
+      # process for http-request, and against SQLite, PostgreSQL and MySQL for sql-query.
       #
-      # Delete this step and add http-request to the loop above when the proxy lands in v0.9.0.
-      - name: the cases http-request cannot run yet
+      # Delete this step and add both to the loop above when the proxy lands in v0.9.0.
+      - name: the cases http-request and sql-query cannot run yet
         run: |
-          echo "http-request declares network: egress, which the driver refuses until the runner proxy exists."
-          echo "Its $(ls -1 http-request/cases | wc -l | tr -d ' ') cases are committed and will run when v0.9.0 lands the proxy."
-          echo "What it does with a request is held in http-request/request_test.go, against an httptest server."
+          for brick in http-request sql-query; do
+            echo "$brick declares network: egress, which the driver refuses until the runner proxy exists."
+            echo "Its $(ls -1 $brick/cases | wc -l | tr -d ' ') cases are committed and will run when v0.9.0 lands the proxy."
+          done
+          echo "What they do is held in http-request/request_test.go and sql-query/query_test.go."
