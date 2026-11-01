@@ -301,7 +301,7 @@ jobs:
         run: |
           jq -n --arg image "ghcr.io/agentiik/$NAME" --arg digest "$DIGEST" '{image: $image, digest: $digest}' > "$RUNNER_TEMP/digest.json"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: needs.plan.outputs.publish == 'true'
         with:
           name: digest-${{ matrix.brick.name }}-${{ strategy.job-index }}
