@@ -12,11 +12,21 @@ metadata:
 spec:
   inputs:
     in:
-      schema: { type: object }
+      schema:
+        type: object
+        description: >-
+          Any item. The expression reads its data, with its identity as $id and its attachments as $files.
+        examples:
+          - { ref: a1, amount: 1200, currency: EUR }
 
   outputs:
     out:
-      schema: { type: object }
+      schema:
+        type: object
+        description: >-
+          What the expression yields for each item, one item per value, each value an object, with the item's attachments. An item yielding one value keeps its identity, and one yielding several gives each the identity followed by #0, #1 and so on.
+        examples:
+          - { ref: a1, total: 1200 }
 
   params:
     expression:

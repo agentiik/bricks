@@ -11,11 +11,21 @@ metadata:
 spec:
   inputs:
     in:
-      schema: { type: object }
+      schema:
+        type: object
+        description: >-
+          Any item carrying every field the template names; one lacking a field is refused rather than rendered with a blank.
+        examples:
+          - { ref: a1, total: 12, currency: EUR }
 
   outputs:
     out:
-      schema: { type: object }
+      schema:
+        type: object
+        description: >-
+          The item as it arrived, with the rendered text added: into field, under the field the field parameter names; into artifact, attached as a file named by the name parameter, its data unchanged.
+        examples:
+          - { ref: a1, total: 12, currency: EUR, text: "Invoice a1: 12 EUR" }
 
   params:
     template:

@@ -11,15 +11,25 @@ metadata:
 spec:
   inputs:
     in:
-      schema: { type: object }
+      schema:
+        type: object
+        description: >-
+          Any item whose data carries the field the key parameter names, with a value that is not an object or an array.
+        examples:
+          - { order: a1, sku: pen, qty: 3 }
+          - { order: a1, sku: pad, qty: 1 }
 
   outputs:
     out:
       schema:
         type: object
+        description: >-
+          One item per group, identified by the key's value: that value under the key's own field, the number of items gathered as count, and their data in arrival order under the field the collect parameter names.
         required: [count]
         properties:
-          count: { type: integer, minimum: 1 }
+          count: { type: integer, minimum: 1, description: How many items the group gathers. }
+        examples:
+          - { order: a1, count: 2, items: [{ order: a1, sku: pen, qty: 3 }, { order: a1, sku: pad, qty: 1 }] }
 
   params:
     key:
