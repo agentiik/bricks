@@ -1,0 +1,1 @@
+{"template_path": "templates/lines.txt", "into": "artifact", "name": "{{.ref}}.txt"}

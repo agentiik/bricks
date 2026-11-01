@@ -12,9 +12,11 @@ A brick reads an envelope at `/agk/in/<port>/envelope.json`, writes one envelope
 | [`schema-validate`](schema-validate) | Holds every item to a JSON Schema and routes the ones that do not meet it to a port of their own. |
 | [`csv`](csv) | Converts a table into one item per row, and a batch of items into a table. |
 | [`http-request`](http-request) | Issues one HTTP request per item and publishes the response. |
+| [`aggregate`](aggregate) | Groups items by the value of one field, one item per group, the other half of `split`. |
+| [`template`](template) | Renders a Go text/template per item, into a field of its data or an artifact it carries. |
 | [`split`](split) | Splits one item into several, one per element of an array field. A shell script and jq, with no helper. |
 
-The rest of the catalog the documentation names, `sql-query`, `s3`, `smtp-send`, `imap-fetch`, `template`, `aggregate`, `wait` and `exec`, is v0.8.0 work. The first four are v0.1.0 because they are what a workflow needs to do anything at all.
+The rest of the catalog the documentation names, `sql-query`, `s3`, `smtp-send`, `imap-fetch`, `wait` and `exec`, is v0.8.0 work. The first four are v0.1.0 because they are what a workflow needs to do anything at all.
 
 ## A brick is a directory
 

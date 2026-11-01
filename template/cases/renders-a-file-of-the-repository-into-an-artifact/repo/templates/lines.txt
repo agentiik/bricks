@@ -1,0 +1,2 @@
+{{range .lines}}{{.sku}} x{{.qty}}
+{{end}}

@@ -1,0 +1,54 @@
+# The other half of split: items that belong together, grouped by the value of one field, so that
+# a step below sees an order with its lines rather than its lines one by one.
+apiVersion: agentiik.dev/v1
+kind: Brick
+
+metadata:
+  name: aggregate
+  version: 0.8.0
+  summary: Groups items by the value of one field, one item per group.
+
+spec:
+  inputs:
+    in:
+      schema: { type: object }
+
+  outputs:
+    out:
+      schema:
+        type: object
+        required: [count]
+        properties:
+          count: { type: integer, minimum: 1 }
+
+  params:
+    key:
+      type: string
+      required: true
+      minLength: 1
+      description: >-
+        The field of each item's data whose value groups it. Items whose values are equal form one
+        group, published as one item carrying that value under the same field, the number of
+        items as count, and their data in arrival order under the field the collect parameter
+        names. A group's identity is the key's value, so two runs over one batch publish the same
+        groups under the same identities. An item without the field, or whose value is an object
+        or an array, is refused as invalid input.
+      examples: [order, customer_id]
+    collect:
+      type: string
+      default: items
+      minLength: 1
+      description: >-
+        The field of a group's data holding the data of the items it gathers. It may not be the
+        key or count.
+      examples: [items, lines]
+
+  runtime:
+    network: none
+    streaming: false
+    user: "65532:65532"
+
+  resources:
+    cpu: "0.5"
+    memory: 256Mi
+    pids: 64

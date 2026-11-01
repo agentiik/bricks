@@ -77,7 +77,7 @@ jobs:
       - name: build the images
         run: |
           set -eu
-          for brick in jq schema-validate csv; do
+          for brick in jq schema-validate csv aggregate template; do
             docker build --build-arg "BRICK=$brick" -t "ghcr.io/agentiik/$brick:ci" .
           done
           docker build -f http-request/Dockerfile -t ghcr.io/agentiik/http-request:ci .
@@ -89,7 +89,7 @@ jobs:
       - name: run the cases
         run: |
           set -eu
-          for brick in jq schema-validate csv split; do
+          for brick in jq schema-validate csv split aggregate template; do
             echo "::group::$brick"
             (cd "$brick" && agk brick test --image "ghcr.io/agentiik/$brick:ci" \
               --ignore meta.run_id,meta.produced_at,files.uri)

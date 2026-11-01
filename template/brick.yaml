@@ -1,0 +1,72 @@
+# Text rendered from each item: a message body, a report, a file another system reads. The
+# template is the step's, inline or a file of the repository, and the item is what fills it.
+apiVersion: agentiik.dev/v1
+kind: Brick
+
+metadata:
+  name: template
+  version: 0.8.0
+  summary: Renders a text template per item, into a field or an artifact.
+
+spec:
+  inputs:
+    in:
+      schema: { type: object }
+
+  outputs:
+    out:
+      schema: { type: object }
+
+  params:
+    template:
+      type: string
+      description: >-
+        The template, in the syntax of Go's text/template: {{.ref}} is the field ref of the item's
+        data, {{id}} the item's identity, {{json .lines}} a value as JSON. A field the template
+        names and the item lacks is refused rather than rendered empty. Give this or
+        template_path, and one of the two.
+      examples:
+        - "Invoice {{.ref}}: {{.total}} {{.currency}}"
+        - "{{range .lines}}{{.sku}} x{{.qty}}\n{{end}}"
+    template_path:
+      type: string
+      description: >-
+        A file of the workflow repository holding the template, relative to its root, for a
+        template too long to write inline.
+      examples: [templates/invoice.txt]
+    into:
+      type: string
+      enum: [field, artifact]
+      default: field
+      description: >-
+        Where the rendered text goes: field writes it into the item's data under the field
+        parameter, artifact attaches it as a file named by the name parameter. A text above
+        inline_max_bytes written into a field is spilled to an artifact all the same.
+      examples: [field, artifact]
+    field:
+      type: string
+      default: text
+      minLength: 1
+      description: With into field, the field of the item's data the text is written to.
+      examples: [text, body]
+    name:
+      type: string
+      description: >-
+        With into artifact, the file's name, itself a template filled by the item, so that each
+        item's file has its own: {{.ref}}.txt. Required with into artifact.
+      examples: ["{{.ref}}.txt", "invoice-{{id}}.md"]
+    media_type:
+      type: string
+      default: text/plain; charset=utf-8
+      description: With into artifact, what the bytes are.
+      examples: ["text/plain; charset=utf-8", text/markdown, text/html]
+
+  runtime:
+    network: none
+    streaming: false
+    user: "65532:65532"
+
+  resources:
+    cpu: "0.5"
+    memory: 128Mi
+    pids: 64

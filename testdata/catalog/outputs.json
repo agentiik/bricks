@@ -39,6 +39,56 @@
       "step": "flatten"
     }
   },
+  "orders": {
+    "items": [
+      {
+        "data": {
+          "count": 2,
+          "lines": [
+            {
+              "qty": 3,
+              "ref": "a1",
+              "sku": "pen",
+              "total": 6
+            },
+            {
+              "qty": 1,
+              "ref": "a1",
+              "sku": "pad",
+              "total": 5
+            }
+          ],
+          "ref": "a1",
+          "summary": "a1: 2 lines"
+        },
+        "files": [],
+        "id": "a1"
+      },
+      {
+        "data": {
+          "count": 1,
+          "lines": [
+            {
+              "qty": 2,
+              "ref": "b2",
+              "sku": "ink",
+              "total": 14
+            }
+          ],
+          "ref": "b2",
+          "summary": "b2: 1 lines"
+        },
+        "files": [],
+        "id": "b2"
+      }
+    ],
+    "meta": {
+      "attempt": 1,
+      "count": 2,
+      "port": "out",
+      "step": "summary"
+    }
+  },
   "refused": {
     "items": [
       {

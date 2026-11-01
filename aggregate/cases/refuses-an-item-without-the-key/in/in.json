@@ -1,0 +1,1 @@
+{"meta": {"run_id": "01M2AAZ9G62NQXFAFCXKRPJEH5", "step": "split", "port": "out", "attempt": 1, "count": 2, "produced_at": "2026-01-31T09:00:00Z"}, "items": [{"id": "a", "data": {"order": "a1"}, "files": []}, {"id": "b", "data": {"sku": "ink"}, "files": []}]}
