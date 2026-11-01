@@ -1,0 +1,89 @@
+# Every brick of the catalog that can run on a laptop, in one workflow run by agk run --local, so
+# that the catalog is tested through the engine and not only through agk brick test: the
+# manifests are read off the images, the steps are validated against them, every port declared
+# here is one a brick declares, and each envelope travels from one container to the next as it
+# would on an installation.
+#
+# http-request is the one brick missing, for the reason its cases cannot run either: it declares
+# network: egress, which the driver refuses until the runner proxy exists.
+apiVersion: agentiik.dev/v1
+kind: Workflow
+
+metadata:
+  name: catalog
+  namespace: catalog
+
+inputs:
+  orders:
+    schema:
+      type: array
+      items: { type: object }
+    required: true
+
+outputs:
+  refused:
+    from: { step: validate, port: invalid }
+  lines:
+    from: { step: flatten, port: out }
+  table:
+    from: { step: table, port: out }
+  rows:
+    from: { step: rows, port: out }
+
+steps:
+
+  # Both of its ports are used: the order with no lines leaves on invalid and stops there.
+  validate:
+    image: ghcr.io/agentiik/schema-validate:ci
+    inputs:
+      in: ${{ workflow.inputs.orders }}
+    params:
+      schema:
+        type: object
+        required: [ref, lines]
+        properties:
+          ref: { type: string }
+          lines: { type: array, minItems: 1 }
+    outputs: [ok, invalid]
+
+  priced:
+    image: ghcr.io/agentiik/jq:ci
+    needs:
+      - { step: validate, port: ok, as: in }
+    params:
+      expression: "{ref, lines: [.lines[] | {sku, qty, total: (.qty * .price)}]}"
+    outputs: [out]
+
+  split:
+    image: ghcr.io/agentiik/split:ci
+    needs:
+      - { step: priced, port: out, as: in }
+    params:
+      field: lines
+    outputs: [out]
+
+  flatten:
+    image: ghcr.io/agentiik/jq:ci
+    needs:
+      - { step: split, port: out, as: in }
+    params:
+      expression: "{ref, sku: .lines.sku, qty: .lines.qty, total: .lines.total}"
+    outputs: [out]
+
+  table:
+    image: ghcr.io/agentiik/csv:ci
+    needs:
+      - { step: flatten, port: out, as: in }
+    params:
+      direction: to_table
+      table_name: lines.csv
+      inline_max_bytes: 0
+    outputs: [out]
+
+  rows:
+    image: ghcr.io/agentiik/csv:ci
+    needs:
+      - { step: table, port: out, as: in }
+    params:
+      direction: to_items
+    outputs: [out]

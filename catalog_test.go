@@ -21,10 +21,11 @@ import (
 // against the image; this holds the documents before any image exists, so that a manifest the
 // engine would refuse fails here and not on somebody's first pull.
 
-// notBricks are the directories of the repository that are not a brick. Any other directory is
-// one, and one missing its manifest fails rather than being skipped, since a brick nobody checks
-// is the one that ships broken.
-var notBricks = []string{"internal"}
+// notBricks are the directories of the repository that are not a brick: the shared Go package,
+// and the workflow that runs the catalog through the engine. Any other directory is one, and one
+// missing its manifest fails rather than being skipped, since a brick nobody checks is the one
+// that ships broken.
+var notBricks = []string{"internal", "testdata"}
 
 // brick is one directory of the catalog and what its documents say.
 type brick struct {
