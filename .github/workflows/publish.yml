@@ -164,7 +164,7 @@ jobs:
 
       # QEMU for the RUN steps of an image built on Alpine, split's apk add; the Go bricks cross
       # compile and run nothing under emulation.
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
 
       - uses: docker/setup-buildx-action@v3
         with:
