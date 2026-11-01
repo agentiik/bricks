@@ -375,6 +375,76 @@ func members(t *testing.T, brick, where string, s map[string]any) {
 	}
 }
 
+// Every manifest says what its brick needs from its container rather than leaving it to a
+// default: its network posture, the account it runs as, and the CPU, memory and processes one
+// container asks for. A default is the pool's, not the brick's, and a catalog page or a reviewer
+// reading a manifest should not have to know the policy of some installation to know what the
+// brick does. agk brick test runs every case under these resources, so a manifest that asks for
+// too little fails its own cases.
+//
+// The secrets it declares are the ones its code reads, and the other way round: each declared
+// mount is named in the brick's source, and every path under /agk/secrets/ the source names is
+// declared. A secret read and not declared is never mounted, and one declared and not read asks a
+// namespace to hand over a credential for nothing, which is the one thing secrets-honestly says
+// a brick must not do.
+func TestEveryManifestSaysWhatItNeeds(t *testing.T) {
+	mounted := regexp.MustCompile(`/agk/secrets/[A-Za-z0-9][A-Za-z0-9._-]*`)
+	for _, b := range bricks(t) {
+		for _, key := range []string{"network", "user"} {
+			if lookup(b.manifest, "spec", "runtime", key) == nil {
+				t.Errorf("%s/brick.yaml does not say spec.runtime.%s, and the default is not the brick's to rely on", b.name, key)
+			}
+		}
+		for _, key := range []string{"cpu", "memory", "pids"} {
+			if lookup(b.manifest, "spec", "resources", key) == nil {
+				t.Errorf("%s/brick.yaml does not say spec.resources.%s, and the default is the pool's rather than the brick's", b.name, key)
+			}
+		}
+
+		var source strings.Builder
+		err := filepath.WalkDir(b.name, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() && d.Name() == "cases" {
+				return filepath.SkipDir
+			}
+			if d.IsDir() || strings.HasSuffix(path, "_test.go") || filepath.Base(path) == "brick.yaml" {
+				return nil
+			}
+			doc, err := os.ReadFile(path)
+			source.Write(doc)
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		read := map[string]bool{}
+		for _, path := range mounted.FindAllString(source.String(), -1) {
+			read[path] = true
+		}
+		declared := map[string]bool{}
+		secrets, _ := lookup(b.manifest, "spec", "secrets").([]any)
+		for _, s := range secrets {
+			name, _ := lookup(s, "name").(string)
+			mount, _ := lookup(s, "mount").(string)
+			if mount == "" {
+				t.Errorf("%s/brick.yaml declares the secret %s with no mount, and the brick's code names a path", b.name, name)
+				continue
+			}
+			declared[mount] = true
+			if !read[mount] {
+				t.Errorf("%s/brick.yaml declares the secret %s at %s, and nothing in %s reads it", b.name, name, mount, b.name)
+			}
+		}
+		for path := range read {
+			if !declared[path] {
+				t.Errorf("%s reads %s, which %s/brick.yaml does not declare, so it is never mounted", b.name, path, b.name)
+			}
+		}
+	}
+}
+
 // lookup follows keys through a decoded document, and answers nil where any of them is missing.
 func lookup(doc any, keys ...string) any {
 	for _, k := range keys {
