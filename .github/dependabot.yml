@@ -1,0 +1,14 @@
+# The base images are pinned by digest, so nothing moves under a brick unless a pull request moves
+# it. Dependabot opens that pull request when a base image is republished, which is how an
+# advisory fixed upstream reaches the catalog: merged, it is published as dev, and the scheduled
+# rebuild carries it into the release.
+version: 2
+updates:
+  - package-ecosystem: docker
+    directories: ['/', '/http-request', '/split']
+    schedule:
+      interval: daily
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

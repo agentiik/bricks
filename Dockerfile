@@ -14,7 +14,7 @@
 # The build stage runs on the machine building, whatever platform the image is for, and the
 # compiler crosses to the target: building the arm64 image under emulation would take a Go
 # toolchain through QEMU for a binary Go can cross-compile in seconds.
-FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS build
 ARG TARGETOS
 ARG TARGETARCH
 ARG BRICK
