@@ -2,7 +2,9 @@
 #
 # The first is the module: build, vet, test, gofmt, the same four the engine runs and the same
 # four a person runs locally. It holds the part of a brick that is ordinary Go, which is most of
-# http-request and the shared reading and writing every brick does.
+# http-request and the shared reading and writing every brick does, and the documents of every
+# brick: catalog_test.go holds each directory's layout, its manifest to the engine's brick schema,
+# its image's account to its manifest's, and each declared port to a case that shows it.
 #
 # The second is the contract, and nothing but a real container can check it: each image is built
 # and run against its cases with agk brick test, which starts a container, gives it the envelopes
@@ -22,6 +24,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # The brick schema the engine reads a manifest with, which catalog_test.go holds every
+      # brick.yaml to: at the tag being released, and at main otherwise, since main is what the
+      # next release of both repositories is cut from. Without it the test skips, which is right
+      # on a laptop and never right here, so BRICK_SCHEMA is set below and a missing file fails.
+      - uses: actions/checkout@v4
+        with:
+          repository: agentiik/schemas
+          ref: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'main' }}
+          path: .schemas
       - uses: actions/setup-go@v5
         with:
           # The version go.mod requires. Pinned to the minor rather than to stable, so that
@@ -33,6 +45,8 @@ jobs:
         run: go vet ./...
       - name: test
         run: go test ./... -race
+        env:
+          BRICK_SCHEMA: ${{ github.workspace }}/.schemas/brick.schema.json
       - name: gofmt
         run: |
           unformatted=$(gofmt -l .)

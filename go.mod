@@ -3,6 +3,10 @@ module github.com/agentiik/bricks
 go 1.27
 
 require (
+	// YAML, for catalog_test.go alone, which reads every brick.yaml to hold it to the brick
+	// schema. It is the parser the engine reads a manifest with, so the document checked here
+	// is the document the engine sees, and no brick links it.
+	github.com/goccy/go-yaml v1.19.2
 	// jq, for the brick of that name. The brick is a jq expression applied to every item,
 	// so it needs a jq: this is the implementation that is pure Go, which is what lets the
 	// image be a static binary on scratch with no shell and no C library in it. The
