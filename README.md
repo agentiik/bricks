@@ -55,7 +55,7 @@ Its manifest declares `network: egress`, and the driver refuses that posture unt
 
 `internal/envelope` exists because four bricks in one repository would otherwise carry four copies of the same thirty lines. It is not a dependency any brick needs: the contract is files, and a shell script that reads one and writes another is as much a brick as anything here. Nothing in this module imports the engine, so an operator upgrading one is never told to upgrade the other.
 
-Two dependencies, each with its reason in `go.mod`: a pure Go jq, so that the image can be a static binary on scratch, and the JSON Schema implementation the engine validates workflow inputs with, so that a brick cannot accept what the engine refuses.
+Three dependencies, each with its reason in `go.mod`: a pure Go jq, so that the image can be a static binary on scratch; the JSON Schema implementation the engine validates workflow inputs with, so that a brick cannot accept what the engine refuses; and the YAML parser the engine reads manifests with, for `catalog_test.go` alone, which no brick links.
 
 ## Licence
 
