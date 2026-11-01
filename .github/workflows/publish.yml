@@ -315,7 +315,7 @@ jobs:
     outputs:
       images: ${{ steps.gather.outputs.images }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: digest-*
           path: digests
